@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BTC Footprint</title>
+<style>
+:root{--bg:#0b0d12;--panel:#12151c;--line:#232835;--text:#c9d1d9;--muted:#7d8590;--buy:#26a69a;--sell:#ef5350;--accent:#e3b341}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:12px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{display:flex;flex-direction:column;height:100%}
+header{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:14px;margin:0 6px 0 0;font-weight:600}
+label{display:inline-flex;gap:5px;align-items:center;color:var(--muted)}
+select,input[type=number]{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:3px 6px;font:inherit}
+input[type=number]{width:96px}
+button{background:#1c2230;color:var(--text);border:1px solid var(--line);border-radius:4px;padding:4px 10px;font:inherit;cursor:pointer}
+button:hover{border-color:#3a4356}
+.sep{width:1px;height:20px;background:var(--line)}
+#status{display:flex;gap:16px;align-items:center;padding:5px 12px;border-bottom:1px solid var(--line);color:var(--muted);flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;background:#555;margin-right:4px}
+.dot.ok{background:var(--buy)}.dot.wait{background:var(--accent)}.dot.err{background:var(--sell)}
+.ven{display:inline-flex;align-items:center;gap:4px}
+.pos{color:var(--buy)}.neg{color:var(--sell)}.warn{color:var(--accent)}
+#wrap{position:relative;flex:1;min-height:0}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+#tip{position:absolute;pointer-events:none;background:rgba(18,21,28,.96);border:1px solid var(--line);border-radius:4px;padding:6px 8px;font:11px ui-monospace,Consolas,monospace;white-space:pre;display:none;z-index:2}
+#hint{position:absolute;left:10px;top:8px;color:var(--muted);font-size:11px;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <h1>BTC-USD Footprint</h1>
+  <label>Timeframe <select id="tf">
+    <option value="1">1m</option><option value="5">5m</option><option value="15">15m</option>
+    <option value="30">30m</option><option value="60">1h</option></select></label>
+  <label>Row <select id="row">
+    <option value="auto">Auto</option><option value="5">$5</option><option value="10">$10</option>
+    <option value="25">$25</option><option value="50">$50</option><option value="100">$100</option>
+    <option value="250">$250</option><option value="500">$500</option></select></label>
+  <label>Cells <select id="mode">
+    <option value="delta">Delta</option><option value="bidask">Sell × Buy</option><option value="vol">Volume</option></select></label>
+  <label>Units <select id="units"><option value="usd">USD</option><option value="btc">BTC</option></select></label>
+  <span class="sep"></span>
+  <label><input type="checkbox" id="bubbles"> Bubbles ≥ $</label>
+  <input type="number" id="bigMin" min="25000" step="25000">
+  <span class="sep"></span>
+  <label><input type="checkbox" id="v_coinbase"> Coinbase</label>
+  <label><input type="checkbox" id="v_kraken"> Kraken</label>
+  <label><input type="checkbox" id="v_bitstamp"> Bitstamp</label>
+  <span class="sep"></span>
+  <label>Keep <select id="hours">
+    <option value="6">6h</option><option value="12">12h</option><option value="24">24h</option>
+    <option value="48">48h</option><option value="72">72h</option></select></label>
+  <button id="live">Live ⟶</button>
+  <button id="exportJson">Export</button>
+  <button id="exportCsv">CSV</button>
+  <button id="importBtn">Import</button>
+  <input type="file" id="importFile" accept=".json,application/json" hidden>
+  <button id="clear">Clear</button>
+</header>
+<div id="status"></div>
+<div id="wrap">
+  <canvas id="cv"></canvas>
+  <div id="hint">Scroll: zoom · Drag: pan · Double-click: back to live</div>
+  <div id="tip"></div>
+</div>
+</div>
+
+<script>
+"use strict";
+/* ---------- Storage model ----------
+   Trades are aggregated on arrival into 1-minute base bars at $5 price rows.
+   Display timeframe / row size are rebuilt from these, so nothing is lost by changing them.
+   Large aggressive prints (fills from one taker within 150ms) are kept separately for bubbles. */
+const BASE_MS = 60000, BASE_TICK = 5, BIG_FLOOR = 25000, BIG_MAX = 60000;
+const VENUES = ["coinbase", "kraken", "bitstamp"];
+const VNAME = {coinbase:"Coinbase", kraken:"Kraken", bitstamp:"Bitstamp"};
+
+const cfg = {tf:5, row:"auto", mode:"delta", units:"usd", bubbles:true, bigMin:250000, hours:24,
+             venues:{coinbase:true, kraken:true, bitstamp:true}};
+try { const s = JSON.parse(localStorage.getItem("fp_cfg") || "null"); if (s) Object.assign(cfg, s, {venues:Object.assign(cfg.venues, s.venues||{})}); } catch(e) {}
+function saveCfg(){ try { localStorage.setItem("fp_cfg", JSON.stringify(cfg)); } catch(e) {} }
+
+const S = {
+  bars: new Map(), keys: [], keysDirty: false,
+  big: [], acc: {}, last: null, lastTs: 0,
+  vDelta: {}, vCount: {}, unsaved: 0, dirty: true, cache: new Map(), rate: []
+};
+VENUES.forEach(v => { S.vDelta[v] = 0; S.vCount[v] = 0; });
+
+function addTrade(v, ts, p, q, side) {
+  if (!(p > 0 && q > 0 && isFinite(ts))) return;
+  const t = Math.floor(ts / BASE_MS) * BASE_MS;
+  let b = S.bars.get(t);
+  if (!b) { b = {t, o:p, h:p, l:p, c:p, f:ts, z:ts, rows:new Map()}; S.bars.set(t, b); S.keysDirty = true; }
+  if (ts < b.f) { b.f = ts; b.o = p; }
+  if (ts >= b.z) { b.z = ts; b.c = p; }
+  if (p > b.h) b.h = p; if (p < b.l) b.l = p;
+  const r = Math.floor(p / BASE_TICK);
+  let c = b.rows.get(r); if (!c) { c = [0, 0]; b.rows.set(r, c); }
+  if (side === "buy") c[0] += q; else c[1] += q;
+  if (ts >= S.lastTs) { S.lastTs = ts; S.last = p; }
+  S.vDelta[v] += side === "buy" ? q : -q; S.vCount[v]++;
+  S.unsaved++; S.dirty = true; S.rate.push(Date.now());
+  // group consecutive same-side fills from one venue into one aggressive print
+  const a = S.acc[v];
+  if (a && a.side === side && Math.abs(ts - a.ts) <= 150) { a.q += q; a.pq += p * q; a.ts2 = ts; }
+  else { flushAcc(v); S.acc[v] = {side, ts, ts2:ts, q, pq:p*q, at:Date.now()}; }
+}
+function flushAcc(v) {
+  const a = S.acc[v]; if (!a) return; S.acc[v] = null;
+  if (a.pq >= BIG_FLOOR) { S.big.push({t:a.ts, p:a.pq / a.q, q:a.q, s:a.side === "buy" ? 1 : -1, v}); if (S.big.length > BIG_MAX) S.big.splice(0, S.big.length - BIG_MAX); }
+}
+function sortedKeys() { if (S.keysDirty) { S.keys = [...S.bars.keys()].sort((a, b) => a - b); S.keysDirty = false; } return S.keys; }
+
+function prune() {
+  const cut = Date.now() - cfg.hours * 3600e3;
+  let n = 0;
+  for (const t of S.bars.keys()) if (t < cut) { S.bars.delete(t); n++; }
+  if (n) { S.keysDirty = true; S.cache.clear(); }
+  if (S.big.length && S.big[0].t < cut) S.big = S.big.filter(x => x.t >= cut);
+  const r = Date.now() - 60000; while (S.rate.length && S.rate[0] < r) S.rate.shift();
+  S.dirty = true;
+}
+
+/* ---------- Exchange feeds (public, read-only, no keys) ---------- */
+function parseTime(s) { return Date.parse(String(s).replace(/(\.\d{3})\d+/, "$1")); }
+function makeFeed(name, url, subs, parse, staleMs, keepalive) {
+  const f = {name, state:"off", ws:null, lastMsg:0, retry:0, timer:null, ka:null};
+  f.connect = () => {
+    clearTimeout(f.timer);
+    if (!cfg.venues[name]) { f.state = "off"; return; }
+    f.state = "wait"; let ws;
+    try { ws = new WebSocket(url); } catch (e) { f.state = "err"; return f.sched(); }
+    f.ws = ws;
+    ws.onopen = () => { subs.forEach(m => ws.send(JSON.stringify(m))); f.lastMsg = Date.now(); f.retry = 0;
+      if (keepalive) { clearInterval(f.ka); f.ka = setInterval(() => { if (ws.readyState === 1) ws.send(JSON.stringify(keepalive)); }, 20000); } };
+    ws.onmessage = e => { if (f.ws !== ws) return; f.lastMsg = Date.now(); let m; try { m = JSON.parse(e.data); } catch (x) { return; } f.state = "ok"; parse(m, f); };
+    ws.onerror = () => { if (f.ws === ws) f.state = "err"; };
+    ws.onclose = () => { if (f.ws !== ws) return; f.ws = null; clearInterval(f.ka); f.state = "err"; f.sched(); };
+  };
+  f.sched = () => { clearTimeout(f.timer); const d = Math.min(30000, 1000 * 2 ** f.retry++); f.timer = setTimeout(f.connect, d); };
+  f.close = () => { f.state = "off"; clearTimeout(f.timer); clearInterval(f.ka); if (f.ws) { const w = f.ws; f.ws = null; try { w.close(); } catch (e) {} } };
+  f.reconnect = () => { f.close(); f.connect(); };
+  f.staleMs = staleMs;
+  return f;
+}
+
+const FEEDS = {
+  // Coinbase Advanced Trade: "side" is the MAKER side, so the aggressor is the opposite.
+  coinbase: makeFeed("coinbase", "wss://advanced-trade-ws.coinbase.com",
+    [{type:"subscribe", channel:"market_trades", product_ids:["BTC-USD"]}, {type:"subscribe", channel:"heartbeats"}],
+    m => { if (m.channel !== "market_trades") return;
+      for (const ev of m.events || []) { if (ev.type !== "update") continue;
+        for (const t of ev.trades || []) addTrade("coinbase", parseTime(t.time), +t.price, +t.size, t.side === "BUY" ? "sell" : "buy"); } },
+    60000),
+  // Kraken WS v2: "side" is the TAKER side.
+  kraken: makeFeed("kraken", "wss://ws.kraken.com/v2",
+    [{method:"subscribe", params:{channel:"trade", symbol:["BTC/USD"], snapshot:false}}],
+    m => { if (m.channel !== "trade" || m.type !== "update") return;
+      for (const t of m.data || []) addTrade("kraken", parseTime(t.timestamp), +t.price, +t.qty, t.side === "buy" ? "buy" : "sell"); },
+    60000),
+  // Bitstamp WS v2: type 0 = buy taker, 1 = sell taker (verify with the per-venue delta readout).
+  bitstamp: makeFeed("bitstamp", "wss://ws.bitstamp.net",
+    [{event:"bts:subscribe", data:{channel:"live_trades_btcusd"}}],
+    (m, f) => { if (m.event === "bts:request_reconnect") { f.reconnect(); return; }
+      if (m.event !== "trade" || !m.data || m.data.price == null) return;
+      const d = m.data, ts = d.microtimestamp ? Math.floor(+d.microtimestamp / 1000) : +d.timestamp * 1000;
+      addTrade("bitstamp", ts, +d.price, +d.amount, +d.type === 0 ? "buy" : "sell"); },
+    120000, {event:"bts:heartbeat"})
+};
+
+setInterval(() => {
+  const now = Date.now();
+  for (const v of VENUES) {
+    const f = FEEDS[v];
+    if (f.ws && f.lastMsg && now - f.lastMsg > f.staleMs) f.reconnect();
+    const a = S.acc[v]; if (a && now - a.at > 1000) flushAcc(v);
+  }
+  updateStatus();
+}, 1000);
+setInterval(prune, 60000);
+
+/* ---------- Display aggregation ---------- */
+function lowerBound(arr, x) { let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] < x) lo = m + 1; else hi = m; } return lo; }
+function displayBuckets() {
+  const tfMs = cfg.tf * 60000, out = []; let prev = null;
+  for (const k of sortedKeys()) { const T = Math.floor(k / tfMs) * tfMs; if (T !== prev) { out.push(T); prev = T; } }
+  return out;
+}
+function ohlc(T) {
+  const tfMs = cfg.tf * 60000, keys = sortedKeys();
+  let i = lowerBound(keys, T), r = null;
+  for (; i < keys.length && keys[i] < T + tfMs; i++) {
+    const b = S.bars.get(keys[i]);
+    if (!r) r = {T, o:b.o, h:b.h, l:b.l, c:b.c}; else { if (b.h > r.h) r.h = b.h; if (b.l < r.l) r.l = b.l; r.c = b.c; }
+  }
+  return r;
+}
+function aggregate(T, rs) {
+  const tfMs = cfg.tf * 60000, live = T + tfMs > Date.now() - 180000, ck = cfg.tf + "|" + rs + "|" + T;
+  if (!live && S.cache.has(ck)) return S.cache.get(ck);
+  const keys = sortedKeys(), rows = new Map(); let buy = 0, sell = 0;
+  for (let i = lowerBound(keys, T); i < keys.length && keys[i] < T + tfMs; i++) {
+    for (const [r, c] of S.bars.get(keys[i]).rows) {
+      const d = Math.floor(r * BASE_TICK / rs); let x = rows.get(d); if (!x) { x = [0, 0]; rows.set(d, x); }
+      x[0] += c[0]; x[1] += c[1]; buy += c[0]; sell += c[1];
+    }
+  }
+  let poc = null, pv = -1; for (const [d, x] of rows) if (x[0] + x[1] > pv) { pv = x[0] + x[1]; poc = d; }
+  const res = {rows, buy, sell, poc};
+  if (!live) { S.cache.set(ck, res); if (S.cache.size > 4000) S.cache.clear(); }
+  return res;
+}
+
+/* ---------- Formatting ---------- */
+function fmtUsd(x) {
+  const a = Math.abs(x), s = x < 0 ? "-" : "";
+  if (a >= 1e9) return s + (a / 1e9).toFixed(1) + "B";
+  if (a >= 1e6) return s + (a / 1e6).toFixed(a >= 1e7 ? 0 : 1) + "M";
+  if (a >= 1e3) return s + Math.round(a / 1e3) + "K";
+  return s + Math.round(a);
+}
+function fmtBtc(x) { const a = Math.abs(x); return (x < 0 ? "-" : "") + (a >= 100 ? a.toFixed(0) : a >= 10 ? a.toFixed(1) : a >= 1 ? a.toFixed(2) : a.toFixed(3)); }
+function fmtAmt(btc, px) { return cfg.units === "usd" ? fmtUsd(btc * px) : fmtBtc(btc); }
+function fmtPx(p) { return p.toLocaleString("en-US", {minimumFractionDigits:0, maximumFractionDigits:0}); }
+function hhmm(t) { const d = new Date(t); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+
+/* ---------- Rendering ---------- */
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d"), tip = document.getElementById("tip");
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C = {buy:css("--buy"), sell:css("--sell"), text:css("--text"), muted:css("--muted"), line:css("--line"), accent:css("--accent"), bg:css("--bg")};
+const AXIS_W = 70, PROF_W = 150, TIME_H = 22, DELTA_H = 34, TOP = 26;
+let W = 0, H = 0, DPR = 1;
+const view = {barW:64, offset:0};
+let mouse = null, layout = null;
+
+function resize() { DPR = window.devicePixelRatio || 1; const r = cv.getBoundingClientRect(); W = r.width; H = r.height; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); S.dirty = true; }
+window.addEventListener("resize", resize);
+
+function rgba(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
+
+function draw() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  const cx1 = W - AXIS_W - PROF_W, cy0 = TOP, cy1 = H - TIME_H - DELTA_H, chH = cy1 - cy0;
+  layout = null;
+  const buckets = displayBuckets();
+  if (!buckets.length || cx1 < 100 || chH < 60) {
+    ctx.fillStyle = C.muted; ctx.font = "13px system-ui"; ctx.textAlign = "center";
+    ctx.fillText("Waiting for trades… (the chart fills from the moment this page is opened)", W / 2, H / 2); return;
+  }
+  const maxOff = Math.max(0, buckets.length - 1);
+  view.offset = Math.min(Math.max(0, view.offset), maxOff);
+  const nVis = Math.max(1, Math.floor(cx1 / view.barW));
+  const end = buckets.length - 1 - Math.round(view.offset), start = Math.max(0, end - nVis + 1);
+  const cols = [];
+  let lo = Infinity, hi = -Infinity;
+  for (let i = start; i <= end; i++) { const o = ohlc(buckets[i]); if (!o) continue; cols.push(o); if (o.l < lo) lo = o.l; if (o.h > hi) hi = o.h; }
+  if (view.offset === 0 && S.last) { lo = Math.min(lo, S.last); hi = Math.max(hi, S.last); }
+  if (hi - lo < 50) { const m = (hi + lo) / 2; lo = m - 25; hi = m + 25; }
+  const pad = (hi - lo) * 0.05; lo -= pad; hi += pad;
+  const ppd = chH / (hi - lo), y = p => cy1 - (p - lo) * ppd;
+  let rs = cfg.row === "auto" ? null : +cfg.row;
+  if (!rs) { rs = 500; for (const c of [5, 10, 25, 50, 100, 250, 500]) if (c * ppd >= 13) { rs = c; break; } }
+  const rowPx = rs * ppd;
+
+  // aggregate visible columns
+  const tfMs = cfg.tf * 60000, x0 = cx1 - cols.length * view.barW;
+  const prof = new Map(); const deltas = [];
+  cols.forEach((o, i) => { o.agg = aggregate(o.T, rs); o.x = x0 + i * view.barW;
+    for (const [d, v] of o.agg.rows) { const k = d * rs + rs / 2;
+      let p = prof.get(d); if (!p) { p = [0, 0]; prof.set(d, p); } p[0] += v[0]; p[1] += v[1];
+      deltas.push(Math.abs(cfg.mode === "vol" ? v[0] + v[1] : v[0] - v[1]) * k); } });
+  deltas.sort((a, b) => a - b);
+  const ref = deltas.length ? Math.max(1, deltas[Math.floor(deltas.length * 0.95)]) : 1;
+
+  // grid + price axis
+  ctx.font = "11px ui-monospace,Consolas,monospace"; ctx.textBaseline = "middle";
+  const steps = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
+  let step = steps[steps.length - 1]; for (const s of steps) if (s * ppd >= 38) { step = s; break; }
+  ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.fillStyle = C.muted; ctx.textAlign = "left";
+  for (let p = Math.ceil(lo / step) * step; p <= hi; p += step) { const yy = Math.round(y(p)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(cx1, yy); ctx.stroke(); ctx.fillText(fmtPx(p), W - AXIS_W + 6, yy); }
+
+  // footprint columns
+  ctx.save(); ctx.beginPath(); ctx.rect(0, cy0, cx1, chH); ctx.clip();
+  const cellX = 8, showText = view.barW >= 40 && rowPx >= 11;
+  for (const o of cols) {
+    const cw = view.barW - cellX - 3;
+    for (const [d, v] of o.agg.rows) {
+      const p0 = d * rs, yt = y(p0 + rs), hh = Math.max(1, rowPx - 1), mid = p0 + rs / 2;
+      const del = v[0] - v[1], val = cfg.mode === "vol" ? v[0] + v[1] : del;
+      const a = 0.10 + 0.75 * Math.pow(Math.min(1, Math.abs(val) * mid / ref), 0.6);
+      ctx.fillStyle = cfg.mode === "vol" ? rgba("#5b8def", a) : rgba(del >= 0 ? C.buy : C.sell, a);
+      ctx.fillRect(o.x + cellX, yt, cw, hh);
+      if (d === o.agg.poc && rowPx >= 4) { ctx.strokeStyle = C.accent; ctx.lineWidth = 1; ctx.strokeRect(o.x + cellX + 0.5, yt + 0.5, cw - 1, hh - 1); }
+      if (showText) { ctx.fillStyle = "#e6edf3"; ctx.textAlign = "center"; ctx.font = (rowPx >= 15 ? 11 : 10) + "px ui-monospace,Consolas,monospace";
+        const t = cfg.mode === "bidask" ? fmtAmt(v[1], mid) + "×" + fmtAmt(v[0], mid) : fmtAmt(val, mid);
+        ctx.fillText(t, o.x + cellX + cw / 2, yt + hh / 2, cw - 2); }
+    }
+    // OHLC strip on the left edge of each column
+    const up = o.c >= o.o; ctx.strokeStyle = ctx.fillStyle = up ? C.buy : C.sell;
+    ctx.beginPath(); ctx.moveTo(o.x + 4.5, y(o.h)); ctx.lineTo(o.x + 4.5, y(o.l)); ctx.stroke();
+    const yb = y(Math.max(o.o, o.c)); ctx.fillRect(o.x + 2, yb, 5, Math.max(1, y(Math.min(o.o, o.c)) - yb));
+  }
+  // volume bubbles (large aggressive prints)
+  if (cfg.bubbles && cols.length) {
+    const t0 = cols[0].T, t1 = cols[cols.length - 1].T + tfMs, col = new Map(cols.map(o => [o.T, o]));
+    for (const b of S.big) {
+      if (b.t < t0 || b.t >= t1 || b.p * b.q < cfg.bigMin) continue;
+      const o = col.get(Math.floor(b.t / tfMs) * tfMs); if (!o) continue;
+      const n = b.p * b.q, r = Math.min(28, Math.max(4, Math.sqrt(n / cfg.bigMin) * 5));
+      const bx = o.x + cellX + ((b.t - o.T) / tfMs) * (view.barW - cellX - 3), by = y(b.p);
+      ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2);
+      ctx.fillStyle = rgba(b.s > 0 ? C.buy : C.sell, 0.35); ctx.fill();
+      ctx.strokeStyle = b.s > 0 ? C.buy : C.sell; ctx.lineWidth = 1.5; ctx.stroke();
+      if (r >= 13) { ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = "10px ui-monospace,Consolas,monospace"; ctx.fillText(fmtUsd(n), bx, by); }
+    }
+  }
+  ctx.restore();
+
+  // session/visible volume profile
+  const px0 = cx1 + 6, pw = PROF_W - (rowPx >= 11 ? 58 : 12); let pmax = 0, pocD = null;
+  for (const [d, v] of prof) if (v[0] + v[1] > pmax) { pmax = v[0] + v[1]; pocD = d; }
+  ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(cx1 + 0.5, cy0); ctx.lineTo(cx1 + 0.5, cy1); ctx.stroke();
+  for (const [d, v] of prof) {
+    const p0 = d * rs; if (p0 + rs < lo || p0 > hi) continue;
+    const yt = y(p0 + rs), hh = Math.max(1, rowPx - 1), sw = pw * v[1] / pmax, bw = pw * v[0] / pmax;
+    ctx.fillStyle = rgba(C.sell, 0.55); ctx.fillRect(px0, yt, sw, hh);
+    ctx.fillStyle = rgba(C.buy, 0.55); ctx.fillRect(px0 + sw, yt, bw, hh);
+    if (d === pocD) { ctx.strokeStyle = C.accent; ctx.strokeRect(px0 + 0.5, yt + 0.5, sw + bw - 1, hh - 1); }
+    if (rowPx >= 11) { const del = v[0] - v[1]; ctx.fillStyle = del >= 0 ? "#9fe0d8" : "#f5a3a1"; ctx.textAlign = "right";
+      ctx.font = "10px ui-monospace,Consolas,monospace"; ctx.fillText(fmtAmt(del, p0 + rs / 2), cx1 + PROF_W - 4, yt + hh / 2); }
+  }
+  ctx.fillStyle = C.muted; ctx.textAlign = "left"; ctx.font = "10px system-ui"; ctx.fillText("Visible profile (sell | buy)", px0, cy0 - 12);
+
+  // bar delta strip
+  const sy = cy1 + 2; ctx.fillStyle = "#0f1218"; ctx.fillRect(0, sy, cx1, DELTA_H - 4);
+  ctx.textAlign = "center"; ctx.font = "10px ui-monospace,Consolas,monospace";
+  for (const o of cols) { const del = o.agg.buy - o.agg.sell, cxm = o.x + view.barW / 2, mp = (o.h + o.l) / 2;
+    if (view.barW >= 34) { ctx.fillStyle = del >= 0 ? C.buy : C.sell; ctx.fillText(fmtAmt(del, mp), cxm, sy + 9, view.barW - 4);
+      ctx.fillStyle = C.muted; ctx.fillText(fmtAmt(o.agg.buy + o.agg.sell, mp), cxm, sy + 22, view.barW - 4); }
+    else { ctx.fillStyle = del >= 0 ? C.buy : C.sell; ctx.fillRect(o.x + 2, sy + 6, view.barW - 4, 6); } }
+  ctx.fillStyle = C.muted; ctx.textAlign = "left"; ctx.fillText("Δ / Vol", W - AXIS_W + 6, sy + 15);
+
+  // time axis
+  const every = Math.max(1, Math.ceil(64 / view.barW)); let lastDay = null;
+  ctx.fillStyle = C.muted; ctx.textAlign = "center";
+  cols.forEach((o, i) => { if ((start + i) % every) return; const d = new Date(o.T).toDateString();
+    ctx.fillText(d !== lastDay && i ? new Date(o.T).toLocaleDateString(undefined, {month:"short", day:"numeric"}) : hhmm(o.T), o.x + view.barW / 2, H - TIME_H / 2); lastDay = d; });
+
+  // last price line
+  if (S.last) { const yy = Math.round(y(S.last)) + 0.5;
+    ctx.setLineDash([2, 3]); ctx.strokeStyle = "#9aa4b2"; ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(W - AXIS_W, yy); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = "#9aa4b2"; ctx.fillRect(W - AXIS_W, yy - 9, AXIS_W, 18); ctx.fillStyle = C.bg; ctx.textAlign = "left";
+    ctx.font = "bold 11px ui-monospace,Consolas,monospace"; ctx.fillText(fmtPx(S.last), W - AXIS_W + 6, yy); }
+
+  // header info
+  ctx.fillStyle = C.muted; ctx.textAlign = "left"; ctx.font = "11px system-ui";
+  ctx.fillText(`Row $${rs}${cfg.row === "auto" ? " (auto)" : ""} · ${cfg.tf}m · ${cfg.mode === "delta" ? "Delta" : cfg.mode === "vol" ? "Volume" : "Sell × Buy"} in ${cfg.units.toUpperCase()}${view.offset ? " · paused (double-click for live)" : ""}`, 340, TOP / 2);
+
+  layout = {cols, rs, y, lo, hi, cx1, cy0, cy1, inv:yy => lo + (cy1 - yy) / ppd, prof};
+  drawCrosshair();
+}
+
+function drawCrosshair() {
+  if (!mouse || !layout) { tip.style.display = "none"; return; }
+  const L = layout, {x, y: my} = mouse;
+  if (x > L.cx1 || my < L.cy0 || my > L.cy1) { tip.style.display = "none"; return; }
+  const price = L.inv(my), d = Math.floor(price / L.rs);
+  ctx.strokeStyle = "rgba(200,210,220,.35)"; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(0, my + 0.5); ctx.lineTo(W - AXIS_W, my + 0.5); ctx.moveTo(x + 0.5, L.cy0); ctx.lineTo(x + 0.5, L.cy1); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = "#2b3242"; ctx.fillRect(W - AXIS_W, my - 9, AXIS_W, 18); ctx.fillStyle = C.text; ctx.textAlign = "left";
+  ctx.font = "11px ui-monospace,Consolas,monospace"; ctx.fillText(fmtPx(price), W - AXIS_W + 6, my);
+  const o = L.cols.find(c => x >= c.x && x < c.x + view.barW);
+  if (!o) { tip.style.display = "none"; return; }
+  const v = o.agg.rows.get(d) || [0, 0], mid = d * L.rs + L.rs / 2, del = o.agg.buy - o.agg.sell;
+  tip.textContent =
+`${new Date(o.T).toLocaleString(undefined, {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"})}  (${cfg.tf}m)
+Row ${fmtPx(d * L.rs)}–${fmtPx((d + 1) * L.rs)}
+  Buy   ${fmtBtc(v[0]).padStart(9)} BTC  ${fmtUsd(v[0] * mid)}
+  Sell  ${fmtBtc(v[1]).padStart(9)} BTC  ${fmtUsd(v[1] * mid)}
+  Delta ${fmtBtc(v[0] - v[1]).padStart(9)} BTC  ${fmtUsd((v[0] - v[1]) * mid)}
+Bar  O ${fmtPx(o.o)}  H ${fmtPx(o.h)}  L ${fmtPx(o.l)}  C ${fmtPx(o.c)}
+  Delta ${fmtBtc(del)} BTC · Vol ${fmtBtc(o.agg.buy + o.agg.sell)} BTC`;
+  tip.style.display = "block";
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  tip.style.left = (x + 16 + tw > W ? x - tw - 12 : x + 16) + "px";
+  tip.style.top = Math.min(H - th - 4, my + 12) + "px";
+}
+
+let lastDraw = 0;
+(function loop(now) { if (S.dirty && now - lastDraw > 200) { S.dirty = false; lastDraw = now; draw(); } requestAnimationFrame(loop); })(0);
+
+/* ---------- Interaction ---------- */
+let drag = null;
+cv.addEventListener("wheel", e => { e.preventDefault(); view.barW = Math.min(220, Math.max(14, view.barW * (e.deltaY < 0 ? 1.12 : 1 / 1.12))); S.dirty = true; }, {passive:false});
+cv.addEventListener("mousedown", e => { drag = {x:e.clientX, off:view.offset}; });
+window.addEventListener("mouseup", () => { drag = null; });
+cv.addEventListener("mousemove", e => { const r = cv.getBoundingClientRect(); mouse = {x:e.clientX - r.left, y:e.clientY - r.top};
+  if (drag) view.offset = Math.max(0, drag.off + (e.clientX - drag.x) / view.barW); S.dirty = true; });
+cv.addEventListener("mouseleave", () => { mouse = null; S.dirty = true; });
+cv.addEventListener("dblclick", () => { view.offset = 0; S.dirty = true; });
+
+/* ---------- Status bar ---------- */
+const statusEl = document.getElementById("status");
+function updateStatus() {
+  const parts = VENUES.map(v => { const f = FEEDS[v], dl = S.vDelta[v];
+    return `<span class="ven"><span class="dot ${f.state}"></span>${VNAME[v]} ${S.vCount[v].toLocaleString()} trades · Δ <span class="${dl >= 0 ? "pos" : "neg"}">${fmtBtc(dl)} BTC</span></span>`; });
+  const mins = S.bars.size;
+  parts.push(`<span>${S.rate.length}/min</span>`);
+  parts.push(`<span>${mins ? (mins >= 60 ? (mins / 60).toFixed(1) + "h" : mins + "m") : "0m"} stored</span>`);
+  parts.push(`<span class="${S.unsaved ? "warn" : ""}">${S.unsaved ? S.unsaved.toLocaleString() + " trades since last export" : "All exported"}</span>`);
+  statusEl.innerHTML = parts.join("");
+}
+
+/* ---------- Export / import ---------- */
+function stamp() { const d = new Date(), p = n => String(n).padStart(2, "0"); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`; }
+function download(name, text, type) { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+function exportJson() {
+  VENUES.forEach(flushAcc);
+  const bars = sortedKeys().map(t => { const b = S.bars.get(t); return [b.t, b.o, b.h, b.l, b.c, b.f, b.z, [...b.rows].map(([r, c]) => [r, +c[0].toFixed(8), +c[1].toFixed(8)])]; });
+  const data = {app:"btc-footprint", version:1, symbol:"BTC-USD", exportedAt:new Date().toISOString(), baseMs:BASE_MS, baseTick:BASE_TICK,
+    venues:VENUES.filter(v => cfg.venues[v]), bars, big:S.big.map(b => [b.t, +b.p.toFixed(2), +b.q.toFixed(8), b.s, b.v])};
+  download(`btc-footprint-${stamp()}.json`, JSON.stringify(data), "application/json");
+  S.unsaved = 0; updateStatus();
+}
+function exportCsv() {
+  const lines = ["minute_utc,price_row_low,price_row_high,buy_btc,sell_btc,delta_btc"];
+  for (const t of sortedKeys()) { const iso = new Date(t).toISOString();
+    for (const [r, c] of [...S.bars.get(t).rows].sort((a, b) => a[0] - b[0]))
+      lines.push(`${iso},${r * BASE_TICK},${(r + 1) * BASE_TICK},${c[0].toFixed(8)},${c[1].toFixed(8)},${(c[0] - c[1]).toFixed(8)}`); }
+  download(`btc-footprint-${stamp()}.csv`, lines.join("\n"), "text/csv");
+}
+function importJson(text) {
+  let d; try { d = JSON.parse(text); } catch (e) { alert("That file isn't valid JSON."); return; }
+  if (!d || d.app !== "btc-footprint" || d.baseMs !== BASE_MS || d.baseTick !== BASE_TICK || !Array.isArray(d.bars)) { alert("That file isn't a BTC Footprint export."); return; }
+  let added = 0, skipped = 0;
+  for (const a of d.bars) {
+    if (!Array.isArray(a) || a.length < 8) continue;
+    const [t, o, h, l, c, f, z, rows] = a, ex = S.bars.get(t);
+    const vol = rows.reduce((s, r) => s + r[1] + r[2], 0);
+    if (ex) { let ev = 0; for (const x of ex.rows.values()) ev += x[0] + x[1]; if (ev >= vol) { skipped++; continue; } }
+    S.bars.set(t, {t, o, h, l, c, f, z, rows:new Map(rows.map(r => [r[0], [r[1], r[2]]]))}); added++;
+  }
+  const seen = new Set(S.big.map(b => b.t + "|" + b.v + "|" + b.q.toFixed(8)));
+  for (const b of d.big || []) { const k = b[0] + "|" + b[4] + "|" + (+b[2]).toFixed(8); if (seen.has(k)) continue; seen.add(k); S.big.push({t:b[0], p:b[1], q:b[2], s:b[3], v:b[4]}); }
+  S.big.sort((a, b) => a.t - b.t);
+  S.keysDirty = true; S.cache.clear(); S.dirty = true;
+  const keys = sortedKeys(); if (keys.length) { const lb = S.bars.get(keys[keys.length - 1]); if (lb.z > S.lastTs) { S.lastTs = lb.z; S.last = lb.c; } }
+  const oldest = keys.length ? new Date(keys[0]) : null;
+  if (oldest && oldest < Date.now() - cfg.hours * 3600e3) alert(`Imported ${added} minutes (${skipped} overlapping minutes kept from memory).\nNote: your "Keep" setting is ${cfg.hours}h, so data older than that will be pruned within a minute. Raise "Keep" to hold older history.`);
+  else alert(`Imported ${added} minutes (${skipped} overlapping minutes kept from memory).`);
+}
+document.getElementById("exportJson").onclick = exportJson;
+document.getElementById("exportCsv").onclick = exportCsv;
+document.getElementById("importBtn").onclick = () => document.getElementById("importFile").click();
+document.getElementById("importFile").onchange = e => { const f = e.target.files[0]; if (!f) return; f.text().then(importJson); e.target.value = ""; };
+document.getElementById("clear").onclick = () => { if (!confirm("Clear all collected data from this page? Export first if you want to keep it.")) return;
+  S.bars.clear(); S.big = []; S.keysDirty = true; S.cache.clear(); S.unsaved = 0; VENUES.forEach(v => { S.vDelta[v] = 0; S.vCount[v] = 0; }); S.dirty = true; updateStatus(); };
+document.getElementById("live").onclick = () => { view.offset = 0; S.dirty = true; };
+window.addEventListener("beforeunload", e => { if (S.unsaved > 0) { e.preventDefault(); e.returnValue = ""; } });
+
+/* ---------- Controls ---------- */
+function bind(id, key, conv, after) { const el = document.getElementById(id), isCb = el.type === "checkbox";
+  if (isCb) el.checked = !!cfg[key]; else el.value = String(cfg[key]);
+  el.onchange = () => { cfg[key] = isCb ? el.checked : conv(el.value); saveCfg(); S.cache.clear(); S.dirty = true; if (after) after(); }; }
+bind("tf", "tf", Number); bind("row", "row", v => v); bind("mode", "mode", v => v); bind("units", "units", v => v);
+bind("bubbles", "bubbles"); bind("bigMin", "bigMin", v => Math.max(BIG_FLOOR, Number(v) || 250000), () => { document.getElementById("bigMin").value = cfg.bigMin; });
+bind("hours", "hours", Number, prune);
+VENUES.forEach(v => { const el = document.getElementById("v_" + v); el.checked = !!cfg.venues[v];
+  el.onchange = () => { cfg.venues[v] = el.checked; saveCfg(); if (el.checked) FEEDS[v].connect(); else FEEDS[v].close(); updateStatus(); }; });
+
+window.__footprintTest = {addTrade, S, FEEDS, cfg, exportJson, importJson};  // used only for offline testing
+resize(); updateStatus();
+VENUES.forEach(v => FEEDS[v].connect());
+</script>
+</body>
+</html>
