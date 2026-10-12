@@ -10,7 +10,7 @@
 <style>
 :root{--bg:#0a0c10;--panel:#11141a;--line:#1f2430;--text:#c9d1d9;--muted:#6b7480;--buy:#1fa37f;--sell:#d9484a;--accent:#d8b24a}
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:12px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
+html,body{margin:0;height:100%;background:var(--bg) var(--bggrad,none);color:var(--text);font:12px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
 #app{display:flex;flex-direction:column;height:100%}
 header{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
 header h1{font-size:14px;margin:0 6px 0 0;font-weight:600;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
@@ -30,7 +30,17 @@ button:disabled{opacity:.45;cursor:default}
 .menu{position:relative}
 .menu-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:10;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 14px 12px;display:grid;gap:6px;min-width:250px;box-shadow:0 10px 28px rgba(0,0,0,.55)}
 .menu-pop[hidden]{display:none}
-.menu-pop.wide{grid-template-columns:auto auto;column-gap:28px;align-items:start}
+.menu-pop.wide{display:block;width:min(900px,calc(100vw - 24px));max-height:78vh;overflow:auto}
+.menu-pop[hidden]{display:none!important}
+.srch{position:sticky;top:-8px;background:var(--panel);padding:2px 0 8px;z-index:1}
+.srch input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:6px 8px;font:inherit}
+.cats{columns:3 250px;column-gap:28px}
+.cat{break-inside:avoid;display:grid;gap:6px;margin-bottom:8px}
+.cat .item{min-width:0}.cat .item label{white-space:normal;min-width:0;flex:1 1 auto;line-height:1.25}
+.cat[hidden],.item[hidden]{display:none}
+.acts{display:inline-flex;flex:none}
+.star{font-size:12px}.star.on{color:#f5d020}
+.tag{font-size:9.5px;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:0 4px;margin-left:2px}
 .menu-pop .col{display:grid;gap:6px;align-content:start}
 .menu-pop label{color:var(--text);white-space:nowrap}
 .item{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:22px}
@@ -47,7 +57,7 @@ button:disabled{opacity:.45;cursor:default}
 #setPop h3{margin:0 0 2px;font-size:12.5px;font-weight:600}
 #setPop .f{display:flex;justify-content:space-between;align-items:center;gap:14px;color:var(--text)}
 #setPop input[type=number]{width:72px}
-#status{display:flex;gap:16px;align-items:center;padding:5px 12px;border-bottom:1px solid var(--line);color:var(--muted);flex-wrap:wrap;font-variant-numeric:tabular-nums}
+#status{background:var(--status,transparent);display:flex;gap:16px;align-items:center;padding:5px 12px;border-bottom:1px solid var(--line);color:var(--muted);flex-wrap:wrap;font-variant-numeric:tabular-nums}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;background:#555;margin-right:4px}
 .dot.ok{background:var(--buy)}.dot.wait{background:var(--accent)}.dot.err{background:var(--sell)}
 .ven{display:inline-flex;align-items:center;gap:4px}
@@ -56,7 +66,7 @@ button:disabled{opacity:.45;cursor:default}
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #cv{cursor:crosshair;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #ov{pointer-events:none}
-#tip{position:absolute;pointer-events:none;background:rgba(17,20,26,.97);border:1px solid var(--line);border-radius:4px;padding:6px 8px;font:11px ui-monospace,Consolas,monospace;white-space:pre;display:none;z-index:2}
+#tip{position:absolute;pointer-events:none;background:var(--panel);opacity:.97;border:1px solid var(--line);border-radius:4px;padding:6px 8px;font:11px ui-monospace,Consolas,monospace;white-space:pre;display:none;z-index:2}
 #pauseBadge{position:absolute;top:32px;left:50%;transform:translateX(-50%);z-index:3;background:rgba(40,34,14,.95);border:1px solid #6b5a24;color:#f1d48a;padding:4px 6px 4px 12px;border-radius:16px;font-size:12px;display:none;align-items:center;gap:10px}
 #pauseBadge button{padding:2px 10px;border-radius:12px}
 /* ---------- phone / narrow layout ---------- */
@@ -75,12 +85,21 @@ body.mob header.open .more{display:flex;flex-wrap:wrap;gap:8px 12px;width:100%;a
 body.mob .sep{display:none}
 body.mob .menu{position:static}
 body.mob .menu-pop,body.mob #setPop{position:fixed!important;left:8px!important;right:8px!important;top:auto!important;bottom:max(8px,env(safe-area-inset-bottom))!important;max-height:72vh;overflow:auto;min-width:0;z-index:40}
-body.mob .menu-pop.wide{grid-template-columns:1fr}
+body.mob .menu-pop.wide{width:auto}
+body.mob .cats{columns:1}
 body.mob .menu-pop label{white-space:normal}
 body.mob .note{max-width:none}
 body.mob #status{gap:10px;padding:4px 8px;font-size:11.5px}
 body.mob #tip{font-size:10.5px;white-space:pre-wrap;max-width:calc(100% - 16px)}
 body.mob #pauseBadge{top:30px;font-size:11.5px;white-space:nowrap}
+#fab{position:absolute;left:8px;top:0;display:none;gap:8px;z-index:4;align-items:center}
+body.mob #fab{display:flex}
+#fab button{height:40px;min-width:40px;border-radius:20px;padding:0 12px;font-size:14px;background:rgba(26,31,42,.82);border:1px solid #2f3747;color:var(--text);box-shadow:0 4px 14px rgba(0,0,0,.45)}
+#fab button[hidden]{display:none}
+#fab button.on{background:rgba(60,50,18,.92);border-color:#6b5a24;color:#f1d48a}
+body.mob #pauseBtn,body.mob #live{display:none}
+body.mob #status:not(.exp){flex-wrap:nowrap;overflow:hidden;white-space:nowrap}
+body.mob #status:not(.exp) > span{flex:none}
 </style>
 </head>
 <body>
@@ -134,6 +153,7 @@ body.mob #pauseBadge{top:30px;font-size:11.5px;white-space:nowrap}
   <canvas id="ov"></canvas>
   <div id="tip"></div>
   <div id="pauseBadge"><span id="pauseTxt">Paused</span><button id="resumeBtn">Resume</button></div>
+  <div id="fab"><button id="fabPause" title="Pause / resume">❚❚</button><button id="fabLive" title="Back to live" hidden>Live</button></div>
 </div>
 </div>
 <div id="setPop" hidden></div>
@@ -174,9 +194,9 @@ const DEF = {
   coin:"BTC", track:"viewed", trackSet:{BTC:true, ETH:false, SOL:false, XRP:false, LTC:false, DOGE:false},
   tfs:300, rowI:"auto", mode:"delta", thr:"auto", units:"usd", prof:"visible", candles:true, abs:true,
   bubbles:false, bigMinC:{BTC:500000, ETH:250000, SOL:100000, XRP:100000, LTC:50000, DOGE:50000}, hours:24, refresh:500,
-  role:"collector", saver:false, wake:false, wakeSet:false, profShow:true, phM:{vol:52, rsi:72, cvd:52, macd:72, stoch:64},
+  role:"collector", saver:false, wake:false, wakeSet:false, theme:{mode:"midnight", top:"#1d2531", bot:"#121821", h:[6, 10, 17, 21]}, themeSet:false, profShow:true, phM:{vol:52, rsi:72, cvd:52, macd:72, stoch:64, obv:52, atr:52, adx:64}, fav:{}, avPick:false,
   store:"browser", retain:30, restore:true, backfill:true, seed:true, gapReset:false, loadRange:24, expRange:"mem", expSettings:true, venues:{coinbase:true, kraken:true, bitstamp:true},
-  ph:{vol:72, rsi:96, cvd:64, macd:96, stoch:84},
+  ph:{vol:72, rsi:96, cvd:64, macd:96, stoch:84, obv:64, atr:64, adx:84},
   sr:{res:"#f5d020", sup:"#c084fc"},
   /* Default profile: Auto Fib (yellow resistance / purple support), SMA 200 (white) and RSI.
     Everything else starts off, in a cool blue/grey palette that stays
@@ -197,14 +217,26 @@ const DEF = {
     lvDay:{on:false, color:"#e2e8f0", auto:false},
     lvPrior:{on:false, color:"#94a3b8", auto:true},
     lvPvwap:{on:false, color:"#38bdf8", auto:false},
-    fib:{on:true, anchor:"visible", customH:6, res:"#f5d020", sup:"#c084fc"}
+    fib:{on:true, anchor:"visible", customH:6, res:"#f5d020", sup:"#c084fc"},
+    imb:{on:false, ratio:3, rows:3, extend:true, buy:"#22c08f", sell:"#ef5054"},
+    va:{on:false, pct:70, color:"#94a3b8", poc:"#d8b24a"},
+    div:{on:false, len:5, bull:"#22c08f", bear:"#ef5054"},
+    avwap:{on:false, anchor:"low", at:0, color:"#a78bfa", width:2},
+    st:{on:false, len:10, mult:3, up:"#22c08f", down:"#ef5054", width:2},
+    kc:{on:false, len:20, atrLen:10, mult:2, color:"#2dd4bf", width:1},
+    dc:{on:false, len:20, color:"#f59e0b", width:1},
+    piv:{on:false, period:"day", color:"#94a3b8", auto:true},
+    pw:{on:false, color:"#e2e8f0", auto:true}
   },
   pan:{
     vol:{on:true, maLen:20, up:"#22c08f", down:"#ef5054", ma:"#94a3b8"},
     rsi:{on:true, len:14, ob:70, os:30, line:"#7dd3fc", obc:"#ef5054", osc:"#22c08f", lvl:"#4b5563", width:2, shade:false},
     cvd:{on:false, reset:"visible"},
     macd:{on:false, fast:12, slow:26, sig:9, macd:"#7dd3fc", signal:"#e2e8f0"},
-    stoch:{on:false, rsiLen:14, stLen:14, k:3, d:3, ob:80, os:20, kc:"#7dd3fc", dc:"#e2e8f0"}
+    stoch:{on:false, rsiLen:14, stLen:14, k:3, d:3, ob:80, os:20, kc:"#7dd3fc", dc:"#e2e8f0"},
+    obv:{on:false, maLen:20, line:"#7dd3fc", ma:"#94a3b8"},
+    atr:{on:false, len:14, line:"#f59e0b"},
+    adx:{on:false, len:14, lvl:25, adx:"#e2e8f0", pdi:"#22c08f", mdi:"#ef5054"}
   }
 };
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -230,7 +262,8 @@ if (savedRaw) {
   cfg.ind.fib.on = false;   // Auto Fib is too busy on a small screen; it can still be switched on
 }
 if (!COINS[cfg.coin]) cfg.coin = "BTC";
-if (PHONE && !cfg.wakeSet) { cfg.wake = true; cfg.wakeSet = true; }   // phones: keep the screen on while viewing (one-time default; the toggle sticks after that)
+if (PHONE && !cfg.wakeSet) { cfg.wake = true; cfg.wakeSet = true; }
+if (PHONE && !cfg.themeSet) { cfg.theme.mode = "auto"; cfg.themeSet = true; }   // phones follow the time of day; desktop keeps Midnight unless changed   // phones: keep the screen on while viewing (one-time default; the toggle sticks after that)
 function saveCfg() { try { localStorage.setItem("fp_cfg5", JSON.stringify(cfg)); } catch (e) {} }
 let PV = 0;   // bumps whenever an indicator setting changes
 
@@ -526,6 +559,32 @@ function shift(a, n) { const out = new Array(a.length).fill(null); for (let i = 
 // second for live-bar updates, instead of on every redraw.
 // IC (per coin) caches indicator arrays
 const gapThreshold = () => Math.max(300000, 3 * cfg.tfs * 1000);   // a jump longer than this between bars counts as a gap
+// Wilder-smoothed true range
+function atrCalc(Hh, Ll, C, n) { const out = new Array(C.length).fill(null); let a = null, s = 0;
+  for (let i = 0; i < C.length; i++) { const tr = i ? Math.max(Hh[i] - Ll[i], Math.abs(Hh[i] - C[i - 1]), Math.abs(Ll[i] - C[i - 1])) : Hh[i] - Ll[i];
+    if (i < n) { s += tr; if (i === n - 1) { a = s / n; out[i] = a; } } else { a = (a * (n - 1) + tr) / n; out[i] = a; } }
+  return out; }
+function adxCalc(Hh, Ll, C, n) { const len = C.length, pdi = new Array(len).fill(null), mdi = new Array(len).fill(null), adx = new Array(len).fill(null);
+  let tr = 0, pd = 0, md = 0, dxs = 0, ax = null;
+  for (let i = 1; i < len; i++) {
+    const up = Hh[i] - Hh[i - 1], dn = Ll[i - 1] - Ll[i], t = Math.max(Hh[i] - Ll[i], Math.abs(Hh[i] - C[i - 1]), Math.abs(Ll[i] - C[i - 1]));
+    const p = up > dn && up > 0 ? up : 0, m = dn > up && dn > 0 ? dn : 0;
+    if (i <= n) { tr += t; pd += p; md += m; } else { tr = tr - tr / n + t; pd = pd - pd / n + p; md = md - md / n + m; }
+    if (i < n) continue;
+    const P = tr ? 100 * pd / tr : 0, Mi = tr ? 100 * md / tr : 0, dx = P + Mi ? 100 * Math.abs(P - Mi) / (P + Mi) : 0;
+    pdi[i] = P; mdi[i] = Mi;
+    if (i < 2 * n - 1) { dxs += dx; if (i === 2 * n - 2) { ax = (dxs + dx) / n; adx[i] = ax; } } else if (ax !== null) { ax = (ax * (n - 1) + dx) / n; adx[i] = ax; }
+  }
+  return {pdi, mdi, adx}; }
+function supertrend(Hh, Ll, C, n, mult) { const a = atrCalc(Hh, Ll, C, n), len = C.length, line = new Array(len).fill(null), dir = new Array(len).fill(0);
+  let ub = null, lb = null, d = 1;
+  for (let i = 0; i < len; i++) { if (a[i] == null) continue; const m = (Hh[i] + Ll[i]) / 2, bu = m + mult * a[i], bl = m - mult * a[i];
+    ub = ub === null || bu < ub || C[i - 1] > ub ? bu : ub; lb = lb === null || bl > lb || C[i - 1] < lb ? bl : lb;
+    if (d === 1 && C[i] < lb) d = -1; else if (d === -1 && C[i] > ub) d = 1;
+    dir[i] = d; line[i] = d === 1 ? lb : ub; }
+  return {line, dir}; }
+function rollMax(a, n) { const out = new Array(a.length).fill(null); for (let i = n - 1; i < a.length; i++) { let m = -Infinity; for (let j = i - n + 1; j <= i; j++) if (a[j] > m) m = a[j]; out[i] = m; } return out; }
+function rollMin(a, n) { const out = new Array(a.length).fill(null); for (let i = n - 1; i < a.length; i++) { let m = Infinity; for (let j = i - n + 1; j <= i; j++) if (a[j] < m) m = a[j]; out[i] = m; } return out; }
 function calcInd(C, Hh, Ll, V) {
   const I = cfg.ind, P = cfg.pan, v = {};
   for (const key of ["ema1", "ema2", "ema3", "ema4"]) if (I[key].on) v[key] = ema(C, I[key].len);
@@ -544,6 +603,14 @@ function calcInd(C, Hh, Ll, V) {
       for (let j = i - L + 1; j <= i; j++) { if (r[j] == null) return null; if (r[j] > a) a = r[j]; if (r[j] < b) b = r[j]; }
       return a === b ? 50 : (x - b) / (a - b) * 100; });
     v.stK = smaN(raw, P.stoch.k); v.stD = smaN(v.stK, P.stoch.d); }
+  if (I.st.on) { const r = supertrend(Hh, Ll, C, I.st.len, I.st.mult); v.st = r.line; v.stDir = r.dir; }
+  if (I.kc.on) { const m = ema(C, I.kc.len), a = atrCalc(Hh, Ll, C, I.kc.atrLen); v.kcM = m;
+    v.kcU = m.map((x, i) => x == null || a[i] == null ? null : x + I.kc.mult * a[i]); v.kcL = m.map((x, i) => x == null || a[i] == null ? null : x - I.kc.mult * a[i]); }
+  if (I.dc.on) { v.dcU = rollMax(Hh, I.dc.len); v.dcL = rollMin(Ll, I.dc.len); v.dcM = v.dcU.map((x, i) => x == null ? null : (x + v.dcL[i]) / 2); }
+  if (P.atr.on) v.atr = atrCalc(Hh, Ll, C, P.atr.len);
+  if (P.adx.on) Object.assign(v, (r => ({adx:r.adx, pdi:r.pdi, mdi:r.mdi}))(adxCalc(Hh, Ll, C, P.adx.len)));
+  if (P.obv.on) { const o = new Array(C.length); let run = 0; for (let i = 0; i < C.length; i++) { if (i) run += C[i] > C[i - 1] ? V[i] : C[i] < C[i - 1] ? -V[i] : 0; o[i] = run; }
+    v.obv = o; v.obvMA = sma(o, P.obv.maLen); }
   return v;
 }
 function computeInd() {
@@ -591,39 +658,54 @@ function rgba(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >
 const FIB_OPTS = [["visible", "Visible range"], ["4", "Last 4 hours"], ["12", "Last 12 hours"], ["24", "Last 24 hours"], ["48", "Last 48 hours"], ["custom", "Custom lookback"]];
 const fibName = c => c.anchor === "visible" ? "visible range" : c.anchor === "custom" ? `last ${c.customH}h` : `last ${c.anchor}h`;
 const LEN = [["len", "Length", 1, 500, 1]], COL = [["color", "Color"]];
+const CATS = ["Order flow", "Volume", "Trend", "Volatility", "Momentum", "Levels"];
+const AV_OPTS = [["low", "Lowest low in view"], ["high", "Highest high in view"], ["start", "Start of visible range"], ["day", "Start of UTC day"], ["pick", "A bar I pick on the chart"]];
 const IMETA = {
-  vwap:{group:"VWAP (UTC day)", label:() => "VWAP", fields:[], colors:COL, width:true},
-  vwapB:{group:"VWAP (UTC day)", label:c => `VWAP bands ±${c.m1}σ / ±${c.m2}σ`, fields:[["m1", "Inner band (σ)", 0.1, 5, 0.1], ["m2", "Outer band (σ)", 0.1, 6, 0.1]], colors:COL, width:true},
-  ema1:{group:"Moving averages", label:c => `EMA ${c.len}`, fields:LEN, colors:COL, width:true},
-  ema2:{group:"Moving averages", label:c => `EMA ${c.len}`, fields:LEN, colors:COL, width:true},
-  ema3:{group:"Moving averages", label:c => `EMA ${c.len}`, fields:LEN, colors:COL, width:true},
-  ema4:{group:"Moving averages", label:c => `EMA ${c.len}`, fields:LEN, colors:COL, width:true},
-  sma1:{group:"Moving averages", label:c => `SMA ${c.len}`, fields:LEN, colors:COL, width:true},
-  sma2:{group:"Moving averages", label:c => `SMA ${c.len}`, fields:LEN, colors:COL, width:true},
-  sma3:{group:"Moving averages", label:c => `SMA ${c.len}`, fields:LEN, colors:COL, width:true},
-  bb:{group:"Bands & clouds", label:c => `Bollinger (${c.len}, ${c.mult})`, fields:[["len", "Length", 2, 300, 1], ["mult", "Standard deviations", 0.5, 5, 0.1]], colors:COL, width:true},
-  ichi:{group:"Bands & clouds", label:c => `Ichimoku (${c.conv}, ${c.base}, ${c.spanB})`,
+  imb:{group:"Order flow", label:c => `Stacked imbalances (${Math.round(c.ratio * 100)}%, ${c.rows}+ rows)`, fields:[["ratio", "Imbalance ratio (3 = 300%)", 1.5, 10, 0.1], ["rows", "Minimum stacked rows", 2, 8, 1], ["extend", "Extend zones until price returns", "bool"]],
+    colors:[["buy", "Buying imbalance"], ["sell", "Selling imbalance"]], tip:"Rows where aggressive buyers (or sellers) outweigh the other side diagonally by the ratio, stacked several rows deep. Often act as support / resistance."},
+  va:{group:"Order flow", label:c => `Value area ${c.pct}% (VAH / VAL / POC)`, fields:[["pct", "Value area (% of volume)", 50, 95, 1]], colors:[["color", "VAH / VAL lines"], ["poc", "Point of control"]], tip:"From the delta profile's range (Profile setting)."},
+  div:{group:"Order flow", label:c => `Delta divergence (${c.len})`, fields:[["len", "Lookback (bars)", 2, 50, 1]], colors:[["bull", "Bullish (new low, buyers win)"], ["bear", "Bearish (new high, sellers win)"]], tip:"A bar that makes a new high with negative delta, or a new low with positive delta."},
+  vwap:{group:"Volume", label:() => "VWAP (UTC day)", fields:[], colors:COL, width:true},
+  vwapB:{group:"Volume", label:c => `VWAP bands ±${c.m1}σ / ±${c.m2}σ`, fields:[["m1", "Inner band (σ)", 0.1, 5, 0.1], ["m2", "Outer band (σ)", 0.1, 6, 0.1]], colors:COL, width:true},
+  avwap:{group:"Volume", label:c => `Anchored VWAP · ${(AV_OPTS.find(o => o[0] === c.anchor) || AV_OPTS[0])[1].toLowerCase()}`, fields:[["anchor", "Anchor", AV_OPTS]], colors:COL, width:true, pick:true},
+  ema1:{group:"Trend", label:c => `EMA ${c.len}`, fields:LEN, colors:COL, width:true},
+  ema2:{group:"Trend", label:c => `EMA ${c.len}`, fields:LEN, colors:COL, width:true},
+  ema3:{group:"Trend", label:c => `EMA ${c.len}`, fields:LEN, colors:COL, width:true},
+  ema4:{group:"Trend", label:c => `EMA ${c.len}`, fields:LEN, colors:COL, width:true},
+  sma1:{group:"Trend", label:c => `SMA ${c.len}`, fields:LEN, colors:COL, width:true},
+  sma2:{group:"Trend", label:c => `SMA ${c.len}`, fields:LEN, colors:COL, width:true},
+  sma3:{group:"Trend", label:c => `SMA ${c.len}`, fields:LEN, colors:COL, width:true},
+  st:{group:"Trend", label:c => `Supertrend (${c.len}, ${c.mult})`, fields:[["len", "ATR length", 1, 100, 1], ["mult", "Multiplier", 0.5, 10, 0.1]], colors:[["up", "Uptrend"], ["down", "Downtrend"]], width:true},
+  ichi:{group:"Trend", label:c => `Ichimoku (${c.conv}, ${c.base}, ${c.spanB})`,
     fields:[["conv", "Conversion length", 1, 100, 1], ["base", "Base length", 1, 200, 1], ["spanB", "Leading span B length", 1, 300, 1], ["disp", "Displacement", 0, 200, 1]],
     colors:[["tenkan", "Conversion line"], ["kijun", "Base line"], ["up", "Bullish cloud"], ["down", "Bearish cloud"]]},
-  lvOpen:{group:"Key levels", label:() => "Day open", fields:[], colors:COL, auto:true},
-  lvDay:{group:"Key levels", label:() => "Day high / low (so far)", fields:[], colors:COL, auto:true},
-  lvPrior:{group:"Key levels", label:() => "Prior day high / low", fields:[], colors:COL, auto:true},
-  lvPvwap:{group:"Key levels", label:() => "Prior day VWAP", fields:[], colors:COL, auto:true},
-  fib:{group:"Fibonacci", label:c => `Auto Fib · ${fibName(c)}`, fields:[["anchor", "Anchor", FIB_OPTS], ["customH", "Custom lookback (hours)", 1, 72, 1]],
+  bb:{group:"Volatility", label:c => `Bollinger (${c.len}, ${c.mult})`, fields:[["len", "Length", 2, 300, 1], ["mult", "Standard deviations", 0.5, 5, 0.1]], colors:COL, width:true},
+  kc:{group:"Volatility", label:c => `Keltner (${c.len}, ${c.mult}× ATR ${c.atrLen})`, fields:[["len", "EMA length", 2, 300, 1], ["atrLen", "ATR length", 1, 100, 1], ["mult", "ATR multiplier", 0.5, 6, 0.1]], colors:COL, width:true},
+  dc:{group:"Volatility", label:c => `Donchian (${c.len})`, fields:[["len", "Length", 2, 300, 1]], colors:COL, width:true},
+  lvOpen:{group:"Levels", label:() => "Day open", fields:[], colors:COL, auto:true},
+  lvDay:{group:"Levels", label:() => "Day high / low (so far)", fields:[], colors:COL, auto:true},
+  lvPrior:{group:"Levels", label:() => "Prior day high / low", fields:[], colors:COL, auto:true},
+  lvPvwap:{group:"Levels", label:() => "Prior day VWAP", fields:[], colors:COL, auto:true},
+  piv:{group:"Levels", label:c => `Pivot points (${c.period === "week" ? "weekly" : "daily"})`, fields:[["period", "Based on", [["day", "Prior UTC day"], ["week", "Prior week"]]]], colors:COL, auto:true},
+  pw:{group:"Levels", label:() => "Prior week high / low", fields:[], colors:COL, auto:true},
+  fib:{group:"Levels", label:c => `Auto Fib · ${fibName(c)}`, fields:[["anchor", "Anchor", FIB_OPTS], ["customH", "Custom lookback (hours)", 1, 72, 1]],
     colors:[["res", "Resistance (above price)"], ["sup", "Support (below price)"]]}
 };
 const PMETA = {
-  vol:{label:c => `Volume · MA ${c.maLen}`, fields:[["maLen", "Average length", 1, 200, 1]], colors:[["up", "Up bars"], ["down", "Down bars"], ["ma", "Average line"]]},
-  rsi:{label:c => `RSI ${c.len} (${c.ob} / ${c.os})`, fields:[["len", "Length", 2, 100, 1], ["ob", "Overbought", 51, 99, 1], ["os", "Oversold", 1, 49, 1], ["shade", "Shade overbought / oversold areas", "bool"]],
+  vol:{group:"Volume", label:c => `Volume · MA ${c.maLen}`, fields:[["maLen", "Average length", 1, 200, 1]], colors:[["up", "Up bars"], ["down", "Down bars"], ["ma", "Average line"]]},
+  obv:{group:"Volume", label:c => `OBV · MA ${c.maLen}`, fields:[["maLen", "Average length", 1, 200, 1]], colors:[["line", "OBV line"], ["ma", "Average line"]]},
+  cvd:{group:"Order flow", label:c => `CVD · from ${c.reset === "session" ? "UTC day start" : "visible start"}`, fields:[["reset", "Accumulate from", [["visible", "Start of visible range"], ["session", "Start of each UTC day"]]]], colors:[]},
+  rsi:{group:"Momentum", label:c => `RSI ${c.len} (${c.ob} / ${c.os})`, fields:[["len", "Length", 2, 100, 1], ["ob", "Overbought", 51, 99, 1], ["os", "Oversold", 1, 49, 1], ["shade", "Shade overbought / oversold areas", "bool"]],
     colors:[["line", "Line (normal range)"], ["obc", "Line when overbought"], ["osc", "Line when oversold"], ["lvl", "Overbought / oversold lines"]], width:true},
-  cvd:{label:c => `CVD · from ${c.reset === "session" ? "UTC day start" : "visible start"}`, fields:[["reset", "Accumulate from", [["visible", "Start of visible range"], ["session", "Start of each UTC day"]]]], colors:[]},
-  macd:{label:c => `MACD (${c.fast}, ${c.slow}, ${c.sig})`, fields:[["fast", "Fast length", 1, 100, 1], ["slow", "Slow length", 2, 200, 1], ["sig", "Signal length", 1, 100, 1]],
+  macd:{group:"Momentum", label:c => `MACD (${c.fast}, ${c.slow}, ${c.sig})`, fields:[["fast", "Fast length", 1, 100, 1], ["slow", "Slow length", 2, 200, 1], ["sig", "Signal length", 1, 100, 1]],
     colors:[["macd", "MACD line"], ["signal", "Signal line"]]},
-  stoch:{label:c => `Stoch RSI (${c.rsiLen}, ${c.stLen}, ${c.k}, ${c.d})`,
+  stoch:{group:"Momentum", label:c => `Stoch RSI (${c.rsiLen}, ${c.stLen}, ${c.k}, ${c.d})`,
     fields:[["rsiLen", "RSI length", 2, 100, 1], ["stLen", "Stochastic length", 2, 100, 1], ["k", "%K smoothing", 1, 20, 1], ["d", "%D smoothing", 1, 20, 1], ["ob", "Overbought", 51, 99, 1], ["os", "Oversold", 1, 49, 1]],
-    colors:[["kc", "%K line"], ["dc", "%D line"]]}
+    colors:[["kc", "%K line"], ["dc", "%D line"]]},
+  atr:{group:"Volatility", label:c => `ATR ${c.len}`, fields:[["len", "Length", 1, 100, 1]], colors:[["line", "Line"]]},
+  adx:{group:"Trend", label:c => `ADX / DMI ${c.len}`, fields:[["len", "Length", 2, 100, 1], ["lvl", "Trend threshold", 10, 50, 1]], colors:[["adx", "ADX"], ["pdi", "+DI"], ["mdi", "−DI"]]}
 };
-const swatchOf = c => c.color || c.res || c.tenkan || c.line || c.up || c.macd || c.kc || "#6b7480";
+const swatchOf = c => c.color || c.res || c.tenkan || c.line || c.up || c.macd || c.kc || c.buy || c.bull || c.adx || "#6b7480";
 
 /* ======================================================================
    Rendering: two layers.
@@ -633,26 +715,82 @@ const swatchOf = c => c.color || c.res || c.tenkan || c.line || c.up || c.macd |
                   redrawn on mouse movement without touching the base layer.
    ====================================================================== */
 const cv = $("cv"), ctx = cv.getContext("2d", {alpha:false}), ov = $("ov"), octx = ov.getContext("2d"), tip = $("tip");
-const C = {buy:"#1fa37f", sell:"#d9484a", buyHi:"#22c08f", sellHi:"#ef5054", text:"#c9d1d9", muted:"#6b7480",
-           grid:"#151922", line:"#1f2430", accent:"#d8b24a", bg:"#0a0c10", cell:"#131821", mono:"ui-monospace,Consolas,monospace"};
+const C = {buy:"#1fa37f", sell:"#d9484a", buyHi:"#22c08f", sellHi:"#ef5054", accent:"#d8b24a", mono:"ui-monospace,Consolas,monospace"};   // theme colors are added by applyTheme()
+
+/* ---------- Appearance: background styles and the time-of-day cycle ----------
+   Every surface color comes from one token set, so the chart, panels, header and menus change together.
+   Night is lifted (softer slate, brighter labels) rather than darker, so text stays readable when a phone
+   dims itself in a dark room. In Auto, the style follows the device clock and blends over 30 minutes. */
+const THEMES = {
+  midnight:{name:"Midnight", bg0:"#0a0c10", bg1:"#0a0c10", panel:"#11141a", line:"#1f2430", grid:"#151922", grid2:"#252b37", cell:"#131821", strip:"#0d1015", pane:"#0b0e13", line2:"#262c3a", handle:"#3a4252", text:"#c9d1d9", muted:"#6b7480", muted2:"#8b94a1", loBuy:"#5f9d8d", loSell:"#a76a6b", chipHi:"#2b3242"},
+  morning: {name:"Morning",  bg0:"#1d2532", bg1:"#151c27", panel:"#1a212c", line:"#2d3747", grid:"#232c39", grid2:"#343f50", cell:"#202938", strip:"#171e29", pane:"#161d28", line2:"#333e4f", handle:"#4d596e", text:"#dde3ea", muted:"#8f9aaa", muted2:"#a3adbb", loBuy:"#74b8a6", loSell:"#c78788", chipHi:"#343f51"},
+  day:     {name:"Slate",    bg0:"#232c3a", bg1:"#1a2230", panel:"#1f2733", line:"#344052", grid:"#2a3442", grid2:"#3b4759", cell:"#263041", strip:"#1c2431", pane:"#1b2330", line2:"#3a4658", handle:"#56637a", text:"#e3e8ee", muted:"#98a3b3", muted2:"#aab4c2", loBuy:"#7cc0ae", loSell:"#cf8f90", chipHi:"#3a4659"},
+  evening: {name:"Dusk",     bg0:"#241f2b", bg1:"#161a26", panel:"#1d1b25", line:"#352f3f", grid:"#28252f", grid2:"#3c3646", cell:"#252230", strip:"#19171f", pane:"#18161e", line2:"#3a3444", handle:"#594f66", text:"#e4dfe8", muted:"#9c94a6", muted2:"#b0a8b9", loBuy:"#7cbca9", loSell:"#d08f8f", chipHi:"#3d3647"},
+  night:   {name:"Night",    bg0:"#19202b", bg1:"#121821", panel:"#161c25", line:"#2c3644", grid:"#212a36", grid2:"#36414f", cell:"#1d2531", strip:"#141a23", pane:"#131922", line2:"#303a49", handle:"#4f5c70", text:"#e6ebf0", muted:"#9ba6b5", muted2:"#b0bac6", loBuy:"#82c6b3", loSell:"#d69596", chipHi:"#333e4e"}
+};
+const PHASES = ["morning", "day", "evening", "night"];
+const hx = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const toHex = a => "#" + a.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("");
+const mixHex = (a, b, t) => { const x = hx(a), y = hx(b); return toHex(x.map((v, i) => v + (y[i] - v) * t)); };
+function mixTheme(a, b, t) { const o = {}; for (const k in a) o[k] = k === "name" ? (t < 0.5 ? a.name : b.name) : mixHex(a[k], b[k], t); return o; }
+// which phase (and how far into a blend) for a given local time
+function phaseAt(d, hrs) {
+  const m = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60, starts = hrs.map(h => h * 60), HALF = 15;
+  for (let i = 0; i < 4; i++) {   // within 15 min either side of a phase start: blend from the previous phase
+    let dist = m - starts[i]; if (dist > 720) dist -= 1440; if (dist < -720) dist += 1440;
+    if (Math.abs(dist) < HALF) return {a:PHASES[(i + 3) % 4], b:PHASES[i], t:(dist + HALF) / (2 * HALF)};
+  }
+  let cur = 3; for (let i = 0; i < 4; i++) if (m >= starts[i]) cur = i;
+  return {a:PHASES[cur], b:PHASES[cur], t:0};
+}
+function themeNow() {
+  const T = cfg.theme;
+  if (T.mode === "auto") { const p = phaseAt(new Date(), T.h); return Object.assign(mixTheme(THEMES[p.a], THEMES[p.b], p.t), {phase:p}); }
+  if (T.mode === "custom") return Object.assign({}, THEMES.night, {name:"Custom", bg0:T.top, bg1:T.bot, panel:mixHex(T.top, "#000000", 0.15)});
+  return THEMES[T.mode] || THEMES.midnight;
+}
+function themeNowLabel() { const p = phaseAt(new Date(), cfg.theme.h), nm = k => ({morning:"Morning", day:"Day", evening:"Evening", night:"Night"})[k];
+  return p.a === p.b ? nm(p.b) : `blending ${nm(p.a)} → ${nm(p.b)}`; }
+let themeSig = "";
+function applyTheme(force) {
+  const th = themeNow(), sig = JSON.stringify([th.bg0, th.bg1, th.text, th.muted]);
+  if (!force && sig === themeSig) return; themeSig = sig;
+  Object.assign(C, th, {bg:mixHex(th.bg0, th.bg1, 0.5)});
+  const r = document.documentElement.style;
+  r.setProperty("--bg", th.bg1); r.setProperty("--panel", th.panel); r.setProperty("--line", th.line); r.setProperty("--text", th.text); r.setProperty("--muted", th.muted);
+  r.setProperty("--bggrad", th.bg0 === th.bg1 ? "none" : `linear-gradient(180deg, ${th.bg0}, ${th.bg1})`);
+  r.setProperty("--status", th.bg0 === th.bg1 ? "transparent" : th.bg0);
+  const mt = document.querySelector('meta[name="theme-color"]'); if (mt) mt.content = th.panel;
+  needBase = true; needOver = true;
+}
+
 let AXIS_W = 70, GAP = 28, PROF_W = 176, LBL = 50, MOB = false;
 const TIME_H = 22, DELTA_H = 54, TOP = 26, COL_GAP = 8;
-const PANE_DEF = {vol:72, rsi:96, cvd:64, macd:96, stoch:84}, PANE_ORDER = ["vol", "rsi", "cvd", "macd", "stoch"];
+const PANE_DEF = {vol:72, rsi:96, cvd:64, macd:96, stoch:84, obv:64, atr:64, adx:84}, PANE_ORDER = ["vol", "obv", "rsi", "cvd", "macd", "stoch", "atr", "adx"];
 let W = 0, H = 0, DPR = 1, needBase = true, needOver = false, lastBase = 0;
+applyTheme(true);
+setInterval(() => applyTheme(false), 30000);
 const view = {barW:60, offset:0, yZoom:1};
 let mouse = null, layout = null;
 
+// The price axis is sized to the coin's actual price labels, so prices are never cut off; on a phone
+// the delta profile gives up room first (narrower, then bars only without labels).
 function setLayoutMode() {
   MOB = PHONE || innerWidth < 760;
   document.body.classList.toggle("mob", MOB);
-  const pw = DEC_W();
-  if (MOB) { AXIS_W = 52 + pw; GAP = 10; PROF_W = cfg.profShow ? 96 : 0; LBL = 42; }
-  else { AXIS_W = 64 + pw; GAP = 28; PROF_W = cfg.profShow ? 176 : 0; LBL = 50; }
+  const w = W || innerWidth;
+  if (MOB) { GAP = 8; PROF_W = !cfg.profShow ? 0 : w >= 400 ? 92 : w >= 340 ? 76 : 60; LBL = PROF_W >= 76 ? 40 : 4; }
+  else { GAP = 28; PROF_W = cfg.profShow ? 176 : 0; LBL = 50; }
   if (!PROF_W) GAP = MOB ? 4 : 10;
   syncPauseBtn();
 }
-const DEC_W = () => Math.max(0, (M ? M.dec : 0) - 1) * 4;   // price labels with more decimals need a wider axis
+function fitAxis(g, ref) {   // width of the widest price label + padding
+  g.font = "600 11px " + C.mono;
+  const wPx = Math.max(g.measureText(fmtPx(ref || 0)).width, g.measureText(fmtPx((ref || 0) * 1.25)).width, g.measureText("100.0").width);
+  AXIS_W = Math.max(MOB ? 44 : 58, Math.ceil(wPx) + (MOB ? 14 : 18));
+}
 function resize() {
+  const r0 = cv.getBoundingClientRect(); W = r0.width;
   setLayoutMode();
   DPR = Math.min(cfg.saver ? 1.5 : 2, window.devicePixelRatio || 1); const r = cv.getBoundingClientRect(); W = r.width; H = r.height;
   for (const c of [cv, ov]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
@@ -667,8 +805,8 @@ function cellFill(sign, t, vol) {
   const base = sign >= 0 ? C.buy : C.sell;
   return t === 2 ? rgba(base, 0.92) : t === 1 ? rgba(base, 0.30) : C.cell;
 }
-function cellText(sign, t) { return t === 2 ? "#ffffff" : t === 1 ? "#dfe5ec" : sign >= 0 ? "#5f9d8d" : "#a76a6b"; }
-const PANE_DEF_M = {vol:52, rsi:72, cvd:52, macd:72, stoch:64};
+function cellText(sign, t) { return t === 2 ? "#ffffff" : t === 1 ? "#dfe5ec" : sign >= 0 ? C.loBuy : C.loSell; }
+const PANE_DEF_M = {vol:52, rsi:72, cvd:52, macd:72, stoch:64, obv:52, atr:52, adx:64};
 const paneH = () => MOB ? cfg.phM : cfg.ph;
 function activePanes() { const ph = paneH(), df = MOB ? PANE_DEF_M : PANE_DEF; return PANE_ORDER.filter(id => cfg.pan[id].on).map(id => ({id, h:Math.round(ph[id] || df[id])})); }
 
@@ -676,10 +814,12 @@ function drawBase() {
   ensureSeries();
   const g = ctx;
   g.setTransform(DPR, 0, 0, DPR, 0, 0);
-  g.fillStyle = C.bg; g.fillRect(0, 0, W, H);
+  if (C.bg0 === C.bg1) g.fillStyle = C.bg0; else { const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, C.bg0); gr.addColorStop(1, C.bg1); g.fillStyle = gr; }
+  g.fillRect(0, 0, W, H);
   let panes = activePanes(), panesH = panes.reduce((a, p) => a + p.h, 0);
   const maxPanes = Math.max(0, H - TOP - TIME_H - DELTA_H - (MOB ? 140 : 160));   // the price chart always keeps a usable height
   if (panesH > maxPanes && panesH > 0) { const f = maxPanes / panesH; panes.forEach(p => p.h = Math.max(30, Math.floor(p.h * f))); panesH = panes.reduce((a, p) => a + p.h, 0); }
+  fitAxis(g, S.last || (SER.C.length ? SER.C[SER.C.length - 1] : 0));
   const cx1 = W - AXIS_W - PROF_W - GAP, cy0 = TOP, cy1 = H - TIME_H - DELTA_H - panesH, chH = cy1 - cy0;
   const px0 = cx1 + GAP, axX = px0 + PROF_W;
   layout = null;
@@ -800,7 +940,31 @@ function drawBase() {
   }
   if (I.bb.on && IND.bbU) { band(IND.bbU, IND.bbL, rgba(I.bb.color, 0.05));
     series(IND.bbU, I.bb.color, I.bb.width, [], 0.75); series(IND.bbL, I.bb.color, I.bb.width, [], 0.75); series(IND.bbM, I.bb.color, 1, [3, 3], 0.6); }
+  if (I.dc.on && IND.dcU) { band(IND.dcU, IND.dcL, rgba(I.dc.color, 0.04));
+    series(IND.dcU, I.dc.color, I.dc.width, [], 0.8); series(IND.dcL, I.dc.color, I.dc.width, [], 0.8); series(IND.dcM, I.dc.color, 1, [2, 4], 0.55); }
+  if (I.kc.on && IND.kcU) { series(IND.kcU, I.kc.color, I.kc.width, [], 0.8); series(IND.kcL, I.kc.color, I.kc.width, [], 0.8); series(IND.kcM, I.kc.color, 1, [5, 4], 0.55); }
   for (const key of ["sma3", "sma2", "sma1", "ema4", "ema3", "ema2", "ema1"]) if (I[key].on) series(IND[key], I[key].color, I[key].width, key === "sma2" ? [6, 3] : [], 0.9);
+  if (I.st.on && IND.st) {   // Supertrend: one line, colored by trend, broken where the trend flips
+    for (const [d, col] of [[1, I.st.up], [-1, I.st.down]]) {
+      g.strokeStyle = col; g.lineWidth = I.st.width; g.beginPath(); let on = false;
+      for (const o of cols) { const v = IND.st[o.i]; if (v == null || IND.stDir[o.i] !== d) { on = false; continue; } if (!on) { g.moveTo(colX(o), y(v)); on = true; } else g.lineTo(colX(o), y(v)); }
+      g.stroke(); }
+    g.lineWidth = 1;
+    for (const o of cols) { const i = o.i; if (i && IND.stDir[i] && IND.stDir[i - 1] && IND.stDir[i] !== IND.stDir[i - 1]) {   // flip markers
+      const up = IND.stDir[i] === 1, yy = y(up ? o.l : o.h) + (up ? 12 : -12); g.fillStyle = up ? I.st.up : I.st.down;
+      g.beginPath(); if (up) { g.moveTo(colX(o), yy - 6); g.lineTo(colX(o) - 5, yy + 3); g.lineTo(colX(o) + 5, yy + 3); } else { g.moveTo(colX(o), yy + 6); g.lineTo(colX(o) - 5, yy - 3); g.lineTo(colX(o) + 5, yy - 3); } g.fill(); } }
+  }
+  if (I.avwap.on && cols.length) {   // anchored VWAP from a chosen bar to now
+    const c = I.avwap; let a = start;
+    if (c.anchor === "low") { for (let i = start; i <= end; i++) if (SER.L[i] < SER.L[a]) a = i; }
+    else if (c.anchor === "high") { for (let i = start; i <= end; i++) if (SER.H[i] > SER.H[a]) a = i; }
+    else if (c.anchor === "day") a = lowerBound(SER.T, Math.floor(SER.T[end] / DAY_MS) * DAY_MS);
+    else if (c.anchor === "pick" && c.at) a = Math.min(end, lowerBound(SER.T, Math.floor(c.at / tfMs) * tfMs));
+    const av = []; let su = 0, sv = 0;
+    for (let i = a; i <= end; i++) { su += SER.VU[i]; sv += SER.B[i] + SER.Sv[i]; av[i] = sv > 0 ? su / sv : null; }
+    series(av, c.color, c.width, [], 0.95);
+    if (a >= start) { const ax = xAt(a); g.fillStyle = c.color; g.beginPath(); g.arc(ax, y(SER.L[a]) + 10, 3.5, 0, Math.PI * 2); g.fill(); }
+  }
   if (I.vwapB.on) for (const [mult, a] of [[I.vwapB.m2, 0.35], [I.vwapB.m1, 0.55]]) for (const sg of [1, -1])
     series(IND.vw, I.vwapB.color, I.vwapB.width, [4, 4], a, true, v => v[0] + sg * mult * v[1]);
   if (I.vwap.on) series(IND.vw, I.vwap.color, I.vwap.width, [], 1, true, v => v[0]);
@@ -814,7 +978,7 @@ function drawBase() {
     g.strokeStyle = color; g.globalAlpha = 0.85; g.setLineDash(dash); g.lineWidth = 1.2;
     g.beginPath(); g.moveTo(xa, yy); g.lineTo(xb, yy); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; g.lineWidth = 1;
     const label = name + " " + fmtPx(val), tw = g.measureText(label).width + 8;
-    roundRect(g, xb - tw - 4, yy - 8, tw, 15, 3); g.fillStyle = "rgba(10,12,16,.85)"; g.fill();
+    roundRect(g, xb - tw - 4, yy - 8, tw, 15, 3); g.fillStyle = rgba(C.bg, .85); g.fill();
     g.fillStyle = color; g.textAlign = "right"; g.fillText(label, xb - 8, yy);
   }
   if ((I.lvOpen.on || I.lvDay.on || I.lvPrior.on || I.lvPvwap.on) && cols.length) {
@@ -845,11 +1009,59 @@ function drawBase() {
         const label = (r === 0 ? "0" : r === 1 ? "1" : String(r)) + "  " + fmtPx(price), tw = g.measureText(label).width + 8;
         const lx = xs - tw - 6 >= 4 ? xs - tw - 6 : xs + 4;
         if (Math.abs(yy - lastLabelY) < 16) continue; lastLabelY = yy;
-        roundRect(g, lx, yy - 8, tw, 15, 3); g.fillStyle = "rgba(10,12,16,.88)"; g.fill(); g.strokeStyle = rgba(col, 0.6); g.stroke();
+        roundRect(g, lx, yy - 8, tw, 15, 3); g.fillStyle = rgba(C.bg, .88); g.fill(); g.strokeStyle = rgba(col, 0.6); g.stroke();
         g.fillStyle = col; g.textAlign = "left"; g.fillText(label, lx + 4, yy);
       }
       for (const [i, pr] of [[hiI, fh], [loI, fl]]) if (i >= start && i <= end) { g.beginPath(); g.arc(xAt(i), y(pr), 3.5, 0, Math.PI * 2); g.fillStyle = "#e6edf3"; g.fill(); }
     }
+  }
+  // pivots and prior-week levels, per day segment (like the key levels above)
+  if ((I.piv.on || I.pw.on) && cols.length) {
+    const wkOf = d => Math.floor((d + 3) / 7), weekStats = wk => { let o = null;   // UTC weeks start Monday
+      for (let d = wk * 7 - 3; d < wk * 7 + 4; d++) { const D = DAYS.get(d); if (!D) continue; if (!o) o = {o:D.o, h:D.h, l:D.l, c:D.c}; else { o.h = Math.max(o.h, D.h); o.l = Math.min(o.l, D.l); o.c = D.c; } } return o; };
+    const segs = []; for (const o of cols) { const d = dayOf(o), sg = segs[segs.length - 1]; if (sg && sg.d === d) sg.x1 = o.x + view.barW; else segs.push({d, x0:o.x, x1:o.x + view.barW}); }
+    for (const sg of segs) {
+      if (I.piv.on) { const b = I.piv.period === "week" ? weekStats(wkOf(sg.d) - 1) : DAYS.get(sg.d - 1);
+        if (b) { const P = (b.h + b.l + b.c) / 3, R1 = 2 * P - b.l, S1 = 2 * P - b.h, R2 = P + (b.h - b.l), S2 = P - (b.h - b.l), tag = I.piv.period === "week" ? "W" : "";
+          for (const [nm, v, dash] of [[tag + "P", P, [6, 3]], [tag + "R1", R1, [3, 3]], [tag + "S1", S1, [3, 3]], [tag + "R2", R2, [2, 4]], [tag + "S2", S2, [2, 4]]]) levelLine(nm, v, lvColor(I.piv, v), dash, sg.x0, sg.x1); } }
+      if (I.pw.on) { const w = weekStats(wkOf(sg.d) - 1); if (w) { levelLine("PWH", w.h, lvColor(I.pw, w.h), [8, 4], sg.x0, sg.x1); levelLine("PWL", w.l, lvColor(I.pw, w.l), [8, 4], sg.x0, sg.x1); } }
+    }
+  }
+  // stacked imbalances: diagonal comparison (buy at a row vs sell one row below, and the reverse),
+  // several rows in a row. Marked on the bar's edge; optionally extended right until price trades back into the zone.
+  if (I.imb.on && cols.length) {
+    const c = I.imb, minUsd = thr * 0.05, zones = [];
+    for (const o of cols) {
+      const ds = [...o.agg.rows.keys()].sort((a, b) => a - b), get = d => o.agg.rows.get(d) || [0, 0];
+      for (const side of ["buy", "sell"]) {
+        let run = [];
+        const flush = () => { if (run.length >= c.rows) zones.push({o, side, d0:run[0], d1:run[run.length - 1]}); run = []; };
+        for (const d of ds) {
+          const v = get(d), mid = d * rs + rs / 2;
+          const ok = side === "buy" ? v[0] * mid >= minUsd && v[0] >= c.ratio * Math.max(get(d - 1)[1], 1e-12)
+                                    : v[1] * mid >= minUsd && v[1] >= c.ratio * Math.max(get(d + 1)[0], 1e-12);
+          if (ok && (!run.length || d === run[run.length - 1] + 1)) run.push(d); else { flush(); if (ok) run.push(d); }
+        }
+        flush();
+      }
+    }
+    for (const z of zones) {
+      const col = z.side === "buy" ? c.buy : c.sell, yt = y((z.d1 + 1) * rs), yb = y(z.d0 * rs), cx = z.o.x + COL_GAP / 2;
+      if (c.extend) {   // until a later bar trades inside the zone
+        const lo2 = z.d0 * rs, hi2 = (z.d1 + 1) * rs; let xEnd = cx1 - 4;
+        for (const o2 of cols) if (o2.T > z.o.T && o2.l < hi2 && o2.h > lo2) { xEnd = o2.x + COL_GAP / 2; break; }
+        g.fillStyle = rgba(col, 0.09); g.fillRect(cx + cw, yt, Math.max(0, xEnd - cx - cw), yb - yt);
+      }
+      g.fillStyle = col; g.fillRect(z.side === "buy" ? cx + cw - 3 : cx, yt, 3, yb - yt);
+    }
+  }
+  // delta divergence: a new high on negative delta, or a new low on positive delta
+  if (I.div.on && cols.length) {
+    const n = I.div.len;
+    for (const o of cols) { const i = o.i; if (i < n) continue; let hh = -Infinity, ll = Infinity; for (let j = i - n; j < i; j++) { hh = Math.max(hh, SER.H[j]); ll = Math.min(ll, SER.L[j]); }
+      const dl = SER.B[i] - SER.Sv[i], x = colX(o);
+      if (SER.H[i] > hh && dl < 0) { const yy = y(o.h) - 14; g.fillStyle = I.div.bear; g.beginPath(); g.moveTo(x, yy + 7); g.lineTo(x - 6, yy - 3); g.lineTo(x + 6, yy - 3); g.fill(); }
+      if (SER.L[i] < ll && dl > 0) { const yy = y(o.l) + 14; g.fillStyle = I.div.bull; g.beginPath(); g.moveTo(x, yy - 7); g.lineTo(x - 6, yy + 3); g.lineTo(x + 6, yy + 3); g.fill(); } }
   }
   // bubbles (time-indexed lookup instead of scanning every stored print)
   if (cfg.bubbles && !cfg.saver && cols.length) {
@@ -877,7 +1089,7 @@ function drawBase() {
   g.restore();
 
   // separator between chart and profile
-  g.fillStyle = "#0d1015"; g.fillRect(cx1, cy0 - 6, GAP, H - cy0);
+  g.fillStyle = C.strip; g.fillRect(cx1, cy0 - 6, GAP, H - cy0);
   g.strokeStyle = C.line; g.beginPath(); g.moveTo(cx1 + GAP / 2 + 0.5, cy0 - 6); g.lineTo(cx1 + GAP / 2 + 0.5, H); g.stroke();
 
   // delta profile
@@ -885,6 +1097,20 @@ function drawBase() {
   if (!PROF_W) {}
   else if (cfg.prof === "visible") { prof = new Map(); for (const o of cols) for (const [d, v] of o.agg.rows) { let p = prof.get(d); if (!p) { p = [0, 0]; prof.set(d, p); } p[0] += v[0]; p[1] += v[1]; } }
   else prof = scopedProfile(rs);
+  // value area: expand from the point of control until the chosen share of volume is covered
+  if (I.va.on && cols.length) {
+    let vp = prof;
+    if (!PROF_W) { vp = new Map(); if (cfg.prof === "visible") { for (const o of cols) for (const [d, v] of o.agg.rows) { let q = vp.get(d); if (!q) { q = [0, 0]; vp.set(d, q); } q[0] += v[0]; q[1] += v[1]; } } else vp = scopedProfile(rs); }
+    const vol = new Map(); let tot = 0, poc = null, pv = -1;
+    for (const [d, v] of vp) { const x = v[0] + v[1]; vol.set(d, x); tot += x; if (x > pv) { pv = x; poc = d; } }
+    if (poc !== null && tot > 0) {
+      let a = poc, b = poc, acc = pv; const goal = tot * I.va.pct / 100, get = d => vol.get(d) || 0, ks = [...vol.keys()], mn = Math.min(...ks), mx = Math.max(...ks);
+      while (acc < goal && (a > mn || b < mx)) { const up = b < mx ? get(b + 1) : -1, dn = a > mn ? get(a - 1) : -1; if (up >= dn) { b++; acc += Math.max(0, up); } else { a--; acc += Math.max(0, dn); } }
+      g.save(); g.beginPath(); g.rect(0, cy0, cx1, chH); g.clip(); g.font = "600 10px system-ui"; g.textBaseline = "middle";
+      for (const [nm, price, col, dash] of [["VAH", (b + 1) * rs, I.va.color, [7, 4]], ["VAL", a * rs, I.va.color, [7, 4]], ["POC", poc * rs + rs / 2, I.va.poc, [2, 3]]]) levelLine(nm, price, col, dash, 0, cx1 - 2);
+      g.restore();
+    }
+  }
   const bx0 = px0 + LBL, bw = PROF_W - LBL - 6;
   let vmax = 0, dmax = 0, pocD = null; const pd = [];
   for (const [d, v] of prof) { const p0 = d * rs; if (p0 + rs < lo || p0 > hi) continue;
@@ -897,17 +1123,17 @@ function drawBase() {
     g.fillStyle = "rgba(150,160,180,.13)"; g.fillRect(bx0, yt, bw * (v[0] + v[1]) / vmax, hh);
     g.fillStyle = rgba(del >= 0 ? C.buyHi : C.sellHi, 0.5 + 0.5 * Math.sqrt(du / dmax)); g.fillRect(bx0, yt, Math.max(2, bw * du / dmax), hh);
     if (d === pocD) { g.strokeStyle = "rgba(216,178,74,.8)"; g.strokeRect(bx0 + 0.5, yt + 0.5, bw - 1, hh - 1); }
-    if (rowPx >= 11) { const t = du >= pthr ? 2 : du >= pthr * 0.4 ? 1 : 0;
+    if (rowPx >= 11 && LBL >= 30) { const t = du >= pthr ? 2 : du >= pthr * 0.4 ? 1 : 0;
       ptexts.push([fmtAmt(del, mid), yt + hh / 2 + 0.5, t === 2, t === 2 ? (del >= 0 ? "#8ff0d0" : "#ffa8a9") : (del >= 0 ? "#6cc9ae" : "#e88486")]); }
   }
   g.textAlign = "right";
   for (const bold of [false, true]) { g.font = (bold ? "700 " : "600 ") + "10px " + C.mono; for (const [s, ty, b, col] of ptexts) if (b === bold) { g.fillStyle = col; g.fillText(s, bx0 - 5, ty); } }
   g.fillStyle = C.muted; g.textAlign = "left"; g.font = "10.5px system-ui";
-  if (PROF_W) g.fillText(MOB ? "Δ profile · " + (cfg.prof === "visible" ? "visible" : cfg.prof === "session" ? "session" : "all") : "Delta profile · " + (cfg.prof === "visible" ? "visible" : cfg.prof === "session" ? "session (UTC)" : "all stored") + " · hover a row", px0, cy0 - 12);
+  if (PROF_W) g.fillText(MOB ? (PROF_W >= 76 ? "Δ profile" : "Δ") : "Delta profile · " + (cfg.prof === "visible" ? "visible" : cfg.prof === "session" ? "session (UTC)" : "all stored") + " · hover a row", px0, cy0 - 12, PROF_W + AXIS_W - 6);
 
   // bar delta strip
   const sy = cy1 + 4;
-  g.fillStyle = "#0d1015"; g.fillRect(0, cy1, cx1, DELTA_H + panesH); g.fillRect(px0, cy1, PROF_W, DELTA_H + panesH);
+  g.fillStyle = C.strip; g.fillRect(0, cy1, cx1, DELTA_H + panesH); g.fillRect(px0, cy1, PROF_W, DELTA_H + panesH);
   g.strokeStyle = C.line; g.beginPath(); g.moveTo(0, cy1 + 0.5); g.lineTo(cx1, cy1 + 0.5); g.stroke();
   for (const o of cols) {
     const cx = o.x + COL_GAP / 2, t = tier(Math.abs(o.delUsd), barThr);
@@ -916,19 +1142,19 @@ function drawBase() {
   if (cw >= 30) {
     g.textAlign = "center"; g.font = "600 13px " + C.mono;
     for (const o of cols) { const t = tier(Math.abs(o.delUsd), barThr); g.fillStyle = t === 0 ? (o.del >= 0 ? "#7fbfae" : "#cf8a8b") : "#fff"; g.fillText(fmtAmt(o.del, o.mid), colX(o), sy + 15.5, cw - 4); }
-    g.fillStyle = "#8b94a1"; g.font = "11px " + C.mono;
+    g.fillStyle = C.muted2; g.font = "11px " + C.mono;
     for (const o of cols) g.fillText(fmtAmt(o.agg.buy + o.agg.sell, o.mid), colX(o), sy + 40, cw - 4);
   }
-  if (PROF_W) { g.textAlign = "right"; g.fillStyle = C.text; g.font = "600 11px system-ui"; g.fillText(MOB ? "Δ" : "Bar delta", px0 + LBL - 6, sy + 15.5);
+  if (PROF_W && LBL >= 30) { g.textAlign = "right"; g.fillStyle = C.text; g.font = "600 11px system-ui"; g.fillText(MOB ? "Δ" : "Bar delta", px0 + LBL - 6, sy + 15.5);
     g.fillStyle = C.muted; g.font = "11px system-ui"; g.fillText(MOB ? "Vol" : "Volume", px0 + LBL - 6, sy + 40); }
 
   // bottom panels
   const scaleX = axX + 8, dividers = []; let py = cy1 + DELTA_H;
   function paneFrame(p, title, valueText, valueColor) {
     p.y0 = py; p.y1 = py + p.h; py += p.h;
-    g.fillStyle = "#0b0e13"; g.fillRect(0, p.y0, cx1, p.h);
-    g.strokeStyle = "#262c3a"; g.beginPath(); g.moveTo(0, p.y0 + 0.5); g.lineTo(cx1, p.y0 + 0.5); g.moveTo(px0, p.y0 + 0.5); g.lineTo(W, p.y0 + 0.5); g.stroke();
-    g.fillStyle = "#3a4252"; if (MOB) roundRect(g, cx1 / 2 - 22, p.y0 - 2, 44, 5, 2.5), g.fill(); else g.fillRect(cx1 / 2 - 14, p.y0 - 1, 28, 3);
+    g.fillStyle = C.pane; g.fillRect(0, p.y0, cx1, p.h);
+    g.strokeStyle = C.line2; g.beginPath(); g.moveTo(0, p.y0 + 0.5); g.lineTo(cx1, p.y0 + 0.5); g.moveTo(px0, p.y0 + 0.5); g.lineTo(W, p.y0 + 0.5); g.stroke();
+    g.fillStyle = C.handle; if (MOB) roundRect(g, cx1 / 2 - 22, p.y0 - 2, 44, 5, 2.5), g.fill(); else g.fillRect(cx1 / 2 - 14, p.y0 - 1, 28, 3);
     dividers.push({id:p.id, y:p.y0});
     g.textAlign = "left"; g.textBaseline = "middle"; g.font = "600 11px system-ui"; g.fillStyle = C.text; g.fillText(title, 8, p.y0 + 11);
     if (valueText) { const tw = g.measureText(title).width; g.font = "600 11px " + C.mono; g.fillStyle = valueColor || C.text; g.fillText(valueText, 16 + tw, p.y0 + 11); }
@@ -941,7 +1167,7 @@ function drawBase() {
   function oscillator(arr, yv, ob, os, neutral, obc, osc, top, bot, o) {
     const yOB = yv(ob), yOS = yv(os), lvl = o.lvl || "#4b5563";
     g.setLineDash([5, 4]); g.strokeStyle = lvl; g.beginPath(); g.moveTo(0, yOB + 0.5); g.lineTo(cx1, yOB + 0.5); g.moveTo(0, yOS + 0.5); g.lineTo(cx1, yOS + 0.5); g.stroke();
-    g.strokeStyle = "#20252f"; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(0, yv(50) + 0.5); g.lineTo(cx1, yv(50) + 0.5); g.stroke(); g.setLineDash([]);
+    g.strokeStyle = C.grid2; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(0, yv(50) + 0.5); g.lineTo(cx1, yv(50) + 0.5); g.stroke(); g.setLineDash([]);
     const pts = []; for (const c of cols) if (arr[c.i] != null) pts.push({x:colX(c), y:yv(arr[c.i])});
     if (o.shade && pts.length > 1) for (const [lv, c0, c1, col] of [[ob, top - 4, yOB, obc], [os, yOS, bot + 4, osc]]) {
       g.save(); g.beginPath(); g.rect(0, c0, cx1, c1 - c0); g.clip();
@@ -984,7 +1210,7 @@ function drawBase() {
       const {top, bot} = paneFrame(p, "CVD", usd ? fmtUsd(lastV) : fmtBtc(lastV) + " " + CUR.c, lc);
       let mn = 0, mx = 0; for (const o of cols) { mn = Math.min(mn, cum[o.i]); mx = Math.max(mx, cum[o.i]); } if (mx - mn < 1e-9) { mx += 1; mn -= 1; }
       const yv = v => bot - (v - mn) / (mx - mn) * (bot - top - 12);
-      g.setLineDash([2, 3]); g.strokeStyle = "#2a3140"; g.beginPath(); g.moveTo(0, yv(0) + 0.5); g.lineTo(cx1, yv(0) + 0.5); g.stroke(); g.setLineDash([]);
+      g.setLineDash([2, 3]); g.strokeStyle = C.grid2; g.beginPath(); g.moveTo(0, yv(0) + 0.5); g.lineTo(cx1, yv(0) + 0.5); g.stroke(); g.setLineDash([]);
       linePath(cum, yv); g.strokeStyle = lc; g.lineWidth = 1.8; g.stroke(); g.lineWidth = 1;
       g.lineTo(colX(cols[cols.length - 1]), yv(0)); g.lineTo(colX(cols[0]), yv(0)); g.closePath(); g.fillStyle = rgba(lc, 0.10); g.fill();
       for (const o of cols) { g.beginPath(); g.arc(colX(o), yv(cum[o.i]), 2, 0, Math.PI * 2); g.fillStyle = cum[o.i] >= 0 ? C.buyHi : C.sellHi; g.fill(); }
@@ -993,7 +1219,7 @@ function drawBase() {
       const {top, bot} = paneFrame(p, `MACD ${c.fast} ${c.slow} ${c.sig}`, `${fx(at(IND.macd))}  sig ${fx(at(IND.sig))}  hist ${fx(lh)}`, lh >= 0 ? C.buyHi : C.sellHi);
       let mx = 1e-9; for (const o of cols) mx = Math.max(mx, Math.abs(IND.macd[o.i]), Math.abs(IND.sig[o.i]), Math.abs(IND.hist[o.i]));
       const mid = (top + 12 + bot) / 2, half = (bot - top - 12) / 2, yv = v => mid - v / mx * half, bw2 = Math.max(2, cw * 0.6);
-      g.strokeStyle = "#2a3140"; g.beginPath(); g.moveTo(0, mid + 0.5); g.lineTo(cx1, mid + 0.5); g.stroke();
+      g.strokeStyle = C.grid2; g.beginPath(); g.moveTo(0, mid + 0.5); g.lineTo(cx1, mid + 0.5); g.stroke();
       for (const o of cols) { const h = IND.hist[o.i], prev = o.i ? IND.hist[o.i - 1] : h, grow = Math.abs(h) >= Math.abs(prev);
         g.fillStyle = rgba(h >= 0 ? C.buyHi : C.sellHi, grow ? 0.85 : 0.4); g.fillRect(colX(o) - bw2 / 2, Math.min(mid, yv(h)), bw2, Math.abs(yv(h) - mid)); }
       linePath(IND.macd, yv); g.strokeStyle = c.macd; g.lineWidth = 1.5; g.stroke();
@@ -1004,6 +1230,26 @@ function drawBase() {
       const yv = v => bot - v / 100 * (bot - top - 12);
       oscillator(IND.stK, yv, c.ob, c.os, c.kc, C.sellHi, C.buyHi, top + 12, bot, {lvl:"#4b5563", width:1.6, shade:false});
       linePath(IND.stD, yv); g.strokeStyle = rgba(c.dc, 0.9); g.lineWidth = 1.2; g.stroke(); g.lineWidth = 1;
+    } else if (p.id === "obv" && IND.obv) {
+      const c = P.obv, lv = at(IND.obv), unit = " " + CUR.c;
+      const {top, bot} = paneFrame(p, "OBV", lv == null ? "—" : fmtBtc(lv) + unit, lv >= (at(IND.obvMA) ?? lv) ? C.buyHi : C.sellHi);
+      let mn = Infinity, mx = -Infinity; for (const o of cols) { const v = IND.obv[o.i]; if (v != null) { mn = Math.min(mn, v); mx = Math.max(mx, v); } } if (mx - mn < 1e-9) { mx += 1; mn -= 1; }
+      const yv = v => bot - (v - mn) / (mx - mn) * (bot - top - 12);
+      linePath(IND.obv, yv); g.strokeStyle = c.line; g.lineWidth = 1.6; g.stroke();
+      if (IND.obvMA) { linePath(IND.obvMA, yv); g.strokeStyle = rgba(c.ma, 0.85); g.lineWidth = 1.2; g.stroke(); } g.lineWidth = 1;
+    } else if (p.id === "atr" && IND.atr) {
+      const c = P.atr, lv = at(IND.atr);
+      const {top, bot} = paneFrame(p, `ATR ${c.len}`, lv == null ? "—" : fmtPx(lv) + (lastPx ? `  (${(lv / lastPx * 100).toFixed(2)}%)` : ""), c.line);
+      let mn = Infinity, mx = -Infinity; for (const o of cols) { const v = IND.atr[o.i]; if (v != null) { mn = Math.min(mn, v); mx = Math.max(mx, v); } } if (!isFinite(mn)) { mn = 0; mx = 1; } if (mx - mn < 1e-12) mx = mn + 1e-9;
+      const yv = v => bot - (v - mn) / (mx - mn) * (bot - top - 12);
+      linePath(IND.atr, yv); g.strokeStyle = c.line; g.lineWidth = 1.6; g.stroke(); g.lineWidth = 1;
+    } else if (p.id === "adx" && IND.adx) {
+      const c = P.adx, la = at(IND.adx), lp = at(IND.pdi), lm = at(IND.mdi);
+      const {top, bot} = paneFrame(p, `ADX ${c.len}`, la == null ? "—" : `${la.toFixed(1)}  +DI ${lp.toFixed(1)}  −DI ${lm.toFixed(1)}${la >= c.lvl ? "  trending" : ""}`, la == null ? C.muted : lp >= lm ? C.buyHi : C.sellHi);
+      const yv = v => bot - Math.min(100, v) / 60 * (bot - top - 12);   // 0-60 covers nearly all readings
+      g.setLineDash([5, 4]); g.strokeStyle = C.handle; g.beginPath(); g.moveTo(0, yv(c.lvl) + 0.5); g.lineTo(cx1, yv(c.lvl) + 0.5); g.stroke(); g.setLineDash([]);
+      for (const [arr, col, w] of [[IND.pdi, c.pdi, 1.2], [IND.mdi, c.mdi, 1.2], [IND.adx, c.adx, 1.8]]) { linePath(arr, yv); g.strokeStyle = col; g.lineWidth = w; g.stroke(); }
+      g.lineWidth = 1;
     } else paneFrame(p, p.id.toUpperCase(), "", "");
   }
 
@@ -1036,7 +1282,7 @@ function drawBase() {
       else if (m.rec) { if (filled.length) label += " · filled: " + filled.map(v => VNAME[v]).join(", ");
         if (missing.length) label += " · missing: " + missing.map(v => VNAME[v] + (st[v] === "partial" ? " (partly)" : "")).join(", "); }
       g.font = "600 10px system-ui"; const tw = g.measureText(label).width + 10, lx = Math.min(cx1 - tw - 4, Math.max(4, m.x + 4)), ly = cy0 + 2 + (idx % 2) * 19;
-      roundRect(g, lx, ly, tw, 16, 3); g.fillStyle = "rgba(10,12,16,.92)"; g.fill(); g.strokeStyle = rgba(col, 0.7); g.stroke();
+      roundRect(g, lx, ly, tw, 16, 3); g.fillStyle = rgba(C.bg, .92); g.fill(); g.strokeStyle = rgba(col, 0.7); g.stroke();
       g.fillStyle = col; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(label, lx + 5, ly + 8.5);
     });
   }
@@ -1056,7 +1302,7 @@ function drawBase() {
         g.strokeStyle = "#8b9bb4"; g.globalAlpha = 0.7; g.setLineDash([1, 3]); g.beginPath(); g.moveTo(x, cy0); g.lineTo(x, H - TIME_H); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
         const label = `← ${before.length ? before.map(v => VNAME[v]).join(" + ") + " only" : "partial history"} · ${late.map(v => VNAME[v]).join(", ")} from here`;
         g.font = "600 10px system-ui"; const tw = g.measureText(label).width + 10, lx = Math.max(4, Math.min(cx1 - tw - 4, x - tw - 4)), ly = cy1 - 20;
-        roundRect(g, lx, ly, tw, 16, 3); g.fillStyle = "rgba(10,12,16,.92)"; g.fill(); g.strokeStyle = "rgba(139,155,180,.6)"; g.stroke();
+        roundRect(g, lx, ly, tw, 16, 3); g.fillStyle = rgba(C.bg, .92); g.fill(); g.strokeStyle = "rgba(139,155,180,.6)"; g.stroke();
         g.fillStyle = "#aab6c8"; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(label, lx + 5, ly + 8.5);
       }
     }
@@ -1086,6 +1332,7 @@ function drawBase() {
   document.title = (lastPx ? fmtPx(lastPx) + " · " : "") + (PAUSE.on ? "Paused · " : "") + CUR.c + " Footprint";
 
   layout = {cols, rs, y, lo, hi, cx1, cy0, cy1, px0, axX, cw, rowPx, panes, dividers, IND, prof, colX, paneBot:H - TIME_H, inv:yy => lo + (cy1 - yy) / ppd};
+  placeFab(cy1);
 }
 
 /* ---------- Overlay layer ---------- */
@@ -1103,7 +1350,7 @@ function drawCandle(g, L, o, withLabels) {
   const cx = o.x + COL_GAP / 2, cw = L.cw, mx = Math.round(cx + cw / 2) + 0.5, col = o.c >= o.o ? C.buyHi : C.sellHi;
   const bw = Math.max(3, Math.round(cw * 0.34)), yt = L.y(Math.max(o.o, o.c)), yb = L.y(Math.min(o.o, o.c));
   const yH = L.y(Math.ceil(o.h / L.rs) * L.rs) - 2, yL = L.y(Math.floor(o.l / L.rs) * L.rs) + 2;
-  g.fillStyle = "rgba(10,12,16,.62)"; g.fillRect(cx - 2, yH, cw + 4, yL - yH);
+  g.fillStyle = rgba(C.bg, .62); g.fillRect(cx - 2, yH, cw + 4, yL - yH);
   g.strokeStyle = col; g.lineWidth = 1.5; g.beginPath(); g.moveTo(mx, L.y(o.h)); g.lineTo(mx, L.y(o.l)); g.stroke(); g.lineWidth = 1;
   g.fillStyle = col; g.fillRect(mx - bw / 2, yt, bw, Math.max(1.5, yb - yt));
   if (withLabels) { g.font = "600 10px " + C.mono; g.textAlign = "left"; g.textBaseline = "middle"; g.fillStyle = "#e6edf3";
@@ -1144,7 +1391,7 @@ Traded in ${n} of ${L.cols.length} visible bars (highlighted)${MOB ? "\nTap the 
     if (inPrice && cfg.candles) drawCandle(g, L, o, true); }
   g.strokeStyle = "rgba(200,210,220,.3)"; g.setLineDash([4, 4]);
   g.beginPath(); g.moveTo(x + 0.5, L.cy0); g.lineTo(x + 0.5, L.paneBot); if (inPrice) { g.moveTo(0, my + 0.5); g.lineTo(L.axX, my + 0.5); } g.stroke(); g.setLineDash([]);
-  if (inPrice) { g.fillStyle = "#2b3242"; roundRect(g, L.axX + 2, my - 9, AXIS_W - 4, 18, 3); g.fill(); g.fillStyle = C.text; g.textAlign = "left";
+  if (inPrice) { g.fillStyle = C.chipHi; roundRect(g, L.axX + 2, my - 9, AXIS_W - 4, 18, 3); g.fill(); g.fillStyle = C.text; g.textAlign = "left";
     g.font = "11px " + C.mono; g.fillText(fmtPx(L.inv(my)), L.axX + 8, my + 0.5); }
   if (!o) { hideTip(); return; }
   const when = `${new Date(o.T).toLocaleString(undefined, isDev() ? {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit", second:"2-digit"} : {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"})}  (${tfLabel(cfg.tfs)})`;
@@ -1189,6 +1436,7 @@ const rel = e => { const r = cv.getBoundingClientRect(); return {x:e.clientX - r
 const recentTouch = () => Date.now() - TP.lastTouch < 900;
 cv.addEventListener("wheel", e => { e.preventDefault(); view.barW = clamp(view.barW * (e.deltaY < 0 ? 1.12 : 1 / 1.12), 10, 220); needBase = true; }, {passive:false});
 cv.addEventListener("mousedown", e => { if (recentTouch()) return; const p = rel(e), dv = dividerAt(p.x, p.y);
+  if (PICK.on) { pickAt(p); return; }
   if (dv) { const pane = layout.panes.find(q => q.id === dv.id); resizeDrag = {id:dv.id, y:e.clientY, h:pane.h}; e.preventDefault(); return; }
   if (onAxis(p.x, p.y)) { axisDrag = {y:e.clientY, z:view.yZoom}; e.preventDefault(); return; }
   drag = {x:e.clientX, off:view.offset}; });
@@ -1253,6 +1501,7 @@ function endTouch(e) {
 }
 cv.addEventListener("pointerup", endTouch); cv.addEventListener("pointercancel", endTouch);
 function onTap(p) {
+  if (PICK.on) { pickAt(p); return; }
   const now = Date.now(), dbl = now - TP.lastTap < 330 && TP.lastXY && Math.hypot(p.x - TP.lastXY.x, p.y - TP.lastXY.y) < 40;
   TP.lastTap = dbl ? 0 : now; TP.lastXY = p;
   if (dbl) {
@@ -1266,6 +1515,12 @@ function onTap(p) {
   if (dividerAt(p.x, p.y, 14) || onAxis(p.x, p.y)) return;
   TP.sticky = true; mouse = p; needOver = true;   // tooltip / profile-row highlight stays until the next tap
 }
+// anchored VWAP: the next click / tap on a bar sets the anchor
+const PICK = {on:false};
+function pickAt(p) {
+  if (!layout) return false; const o = layout.cols.find(c => p.x >= c.x && p.x < c.x + view.barW); if (!o) return false;
+  Object.assign(cfg.ind.avwap, {at:o.T, anchor:"pick", on:true}); PICK.on = false; settingsChanged(); updateStatus(); return true;
+}
 function goLive() { view.offset = 0; view.yZoom = 1; S.hold = false; if (PAUSE.on) setPause(false); needBase = true; updateStatus(); }
 
 /* ---------- Pause ---------- */
@@ -1273,9 +1528,20 @@ function setPause(on) {
   ensureSeries();
   PAUSE.on = on;
   if (on) { PAUSE.T = SER.T.length ? SER.T[SER.T.length - 1] : 0; PAUSE.price = S.last; PAUSE.n0 = S.total; }
-  $("pauseBtn").classList.toggle("on", on); syncPauseBtn();
+  $("pauseBtn").classList.toggle("on", on); syncPauseBtn(); syncFab();
   $("pauseBadge").style.display = on ? "flex" : "none"; updatePauseBadge(); needBase = true;
 }
+// phone: floating pause / live buttons in the lower-left of the price chart (older bars sit there, so the
+// newest candles on the right stay clear). Live only shows when the view isn't already live.
+const fab = $("fab"), fabPause = $("fabPause"), fabLive = $("fabLive");
+function placeFab(cy1) { if (!MOB) return; fab.style.top = Math.max(TOP + 4, cy1 - 50) + "px"; syncFab(); }
+function syncFab() {
+  if (!fab) return;
+  fabPause.textContent = PAUSE.on ? "▶" : "❚❚"; fabPause.classList.toggle("on", PAUSE.on);
+  fabLive.hidden = !(view.offset > 0.5 || PAUSE.on || (S && S.hold) || view.yZoom !== 1);
+}
+fabPause.onclick = e => { e.stopPropagation(); setPause(!PAUSE.on); };
+fabLive.onclick = e => { e.stopPropagation(); goLive(); };
 function syncPauseBtn() { $("pauseBtn").textContent = PAUSE.on ? (MOB ? "▶" : "▶ Resume") : (MOB ? "❚❚" : "❚❚ Pause"); $("live").textContent = MOB ? "Live" : "Live ⟶"; }
 function updatePauseBadge() { if (PAUSE.on) $("pauseTxt").textContent = MOB ? `Paused · ${(S.total - PAUSE.n0).toLocaleString()} new trades` : `Paused · ${(S.total - PAUSE.n0).toLocaleString()} new trades collected in the background`; }
 $("pauseBtn").onclick = () => setPause(!PAUSE.on);
@@ -1297,7 +1563,7 @@ function updateStatus() {
   const parts = [], compact = MOB && !statusExp, trk = [...collectSet()];
   if (!COLLECT) parts.push(`<span class="warn">${compact ? "Read-only (another tab collects)" : "Read-only: another tab is collecting. Close it (or this one) so only one tab records."}</span>`);
   for (const v of VENUES) { const f = FEEDS[v], dl = S.vDelta[v], bad = f.bad[CUR.c] ? ` <span class="warn">(no ${CUR.c})</span>` : "";
-    parts.push(compact ? `<span class="ven"><span class="dot ${f.state}"></span>${VNAME[v].slice(0, 2)}${bad}</span>`
+    parts.push(compact ? `<span class="ven" title="${VNAME[v]}"><span class="dot ${f.state}"></span>${bad}</span>`
       : `<span class="ven"><span class="dot ${f.state}"></span>${VNAME[v]} ${S.vCount[v].toLocaleString()} · Δ <span class="${dl >= 0 ? "pos" : "neg"}">${fmtBtc(dl)} ${CUR.c}</span>${bad}</span>`); }
   parts.push(`<span>${S.rate.length}/min</span>`);
   if (trk.length > 1 || cfg.track === "selected") parts.push(`<span title="Coins collecting data">${compact ? "⦿ " + trk.length : "Tracking " + trk.join(", ")}</span>`);
@@ -1309,11 +1575,13 @@ function updateStatus() {
     if (st.quota && st.usage / st.quota > 0.8) parts.push(`<span class="neg">storage nearly full</span>`);
   } else if (!compact) parts.push(`<span class="${S.unsaved && cfg.role !== "viewer" ? "warn" : ""}">${cfg.role === "viewer" ? "Viewer · nothing saved on this device" : S.unsaved ? "Saving off · " + S.unsaved.toLocaleString() + " trades since last export" : "Saving off"}</span>`);
   if (folderOn()) { if (FS.state === "prompt") parts.push(`<span class="warn">Folder needs re-approval (Storage menu)</span>`); else if (FS.state === "ok" && FS.err) parts.push(`<span class="neg">Folder write failed</span>`); }
-  if (BF.msg) parts.push(`<span style="color:#7dd3fc">${BF.msg}</span>`);
-  if (S.hold) parts.push(`<span class="warn">${compact ? "History held · Live to release" : "History loaded · Live ⟶ to release"}</span>`);
+  if (BF.msg) parts.push(`<span style="color:#7dd3fc${compact ? ";flex:0 1 auto;overflow:hidden;text-overflow:ellipsis" : ""}">${BF.msg}</span>`);
+  if (PICK.on) parts.push(`<span class="warn" style="flex:none">${MOB ? "Tap a bar to anchor VWAP" : "Click a bar to anchor the VWAP (Esc to cancel)"}</span>`);
+  if (S.hold) parts.push(`<span class="warn">${compact ? "History held" : "History loaded · Live ⟶ to release"}</span>`);
   if (CLK.est != null && (CLK.est > 3000 || CLK.est < -1500)) parts.push(`<span class="warn">Clock ${Math.abs(CLK.est / 1000).toFixed(1)}s ${CLK.est > 0 ? "ahead" : "behind"}${compact ? "" : " of the exchanges"}</span>`);
   if (WL.on) parts.push(`<span class="okc" title="Screen kept on">${compact ? "☀" : "Screen kept on"}</span>`);
   else if (cfg.wake && !wakeSupported()) parts.push(`<span class="warn">${compact ? "Screen-on needs https" : "Keep screen on needs the hosted (https) version"}</span>`);
+  statusEl.classList.toggle("exp", !compact);
   if (compact) parts.push(`<span style="margin-left:auto;color:#525b68">▾</span>`);
   else parts.push(`<span style="margin-left:auto">${MOB ? "Pinch: zoom · Drag: pan · Hold: crosshair · Tap: details · Double-tap: live · Drag price axis: scale" : "Scroll: zoom · Drag: pan · Drag price axis: scale · Double-click: live · Space: pause"}</span>`);
   statusEl.innerHTML = parts.join("");
@@ -1927,19 +2195,31 @@ const indMenu = $("indMenu"), panMenu = $("panMenu"), setPop = $("setPop");
 function itemHTML(scope, key) {
   const meta = scope === "ind" ? IMETA[key] : PMETA[key], c = scope === "ind" ? cfg.ind[key] : cfg.pan[key];
   const sw = key === "fib" ? `linear-gradient(90deg,${c.res} 50%,${c.sup} 50%)` : c.auto ? `linear-gradient(90deg,${cfg.sr.res} 50%,${cfg.sr.sup} 50%)` : swatchOf(c);
-  return `<div class="item"><label><input type="checkbox" data-on="${scope}:${key}"${c.on ? " checked" : ""}><span class="sw" style="background:${sw}"></span><span>${meta.label(c)}</span></label><button class="gear" data-gear="${scope}:${key}" title="Settings">⚙</button></div>`;
+  const id = scope + ":" + key, f = !!cfg.fav[id];
+  return `<div class="item" data-q="${(meta.label(c) + " " + meta.group + (meta.tip ? " " + meta.tip : "")).toLowerCase().replace(/"/g, "")}"><label${meta.tip ? ` title="${meta.tip}"` : ""}><input type="checkbox" data-on="${id}"${c.on ? " checked" : ""}><span class="sw" style="background:${sw}"></span><span>${meta.label(c)}</span>${scope === "pan" ? '<span class="tag">panel</span>' : ""}</label><span class="acts"><button class="gear star${f ? " on" : ""}" data-fav="${id}" title="${f ? "Remove from" : "Add to"} favorites">${f ? "★" : "☆"}</button><button class="gear" data-gear="${id}" title="Settings">⚙</button></span></div>`;
+}
+let IND_Q = "";
+function filterInd() {   // hide items (and then empty categories) that don't match the search
+  const q = IND_Q.trim().toLowerCase(), words = q.split(/\s+/).filter(Boolean);
+  indMenu.querySelectorAll(".cat").forEach(cat => { let shown = 0;
+    cat.querySelectorAll(".item").forEach(it => { const ok = !words.length || words.every(w => it.dataset.q.includes(w)); it.hidden = !ok; if (ok) shown++; });
+    cat.hidden = words.length > 0 && cat.querySelector(".item") !== null && !shown; });
 }
 function buildMenus() {
-  const col = groups => groups.map(gname => `<div class="mh">${gname}</div>` + Object.keys(IMETA).filter(k => IMETA[k].group === gname).map(k => itemHTML("ind", k)).join("")).join("");
-  indMenu.innerHTML = `<div class="col">${col(["VWAP (UTC day)", "Moving averages"])}</div>
-    <div class="col">${col(["Bands & clouds", "Key levels", "Fibonacci"])}
-      <div class="mh">Auto support / resistance colors</div>
-      <div class="note">Used by key levels that have "Auto S/R" switched on in their settings.</div>
+  // Indicators: every overlay and bottom panel, grouped by category, with search and favorites (★)
+  const entries = [...Object.keys(IMETA).map(k => ["ind", k, IMETA[k].group]), ...PANE_ORDER.map(k => ["pan", k, PMETA[k].group])];
+  const fav = entries.filter(([sc, k]) => cfg.fav[sc + ":" + k]);
+  const block = (title, list) => list.length ? `<div class="cat"><div class="mh">${title}</div>${list.map(([sc, k]) => itemHTML(sc, k)).join("")}</div>` : "";
+  indMenu.innerHTML = `<div class="srch"><input id="indQ" type="search" placeholder="Search ${entries.length} indicators…" value="${IND_Q.replace(/"/g, "&quot;")}" autocomplete="off"></div>
+    <div class="cats">${block("★ Favorites", fav)}${CATS.map(cat => block(cat, entries.filter(e => e[2] === cat))).join("")}
+      <div class="cat"><div class="mh">Auto support / resistance colors</div>
+      <div class="note">Used by levels that have "Auto S/R" switched on in their settings.</div>
       <div class="row3"><label>Resistance <input type="color" data-sr="res" value="${cfg.sr.res}"></label><label>Support <input type="color" data-sr="sup" value="${cfg.sr.sup}"></label></div>
       <div class="mh">Profiles</div>
       <div class="note">Indicators, panels and colors. Default = ${PHONE ? "SMA 200, RSI, Volume (Auto Fib off on phones)" : "Auto Fib, SMA 200, RSI, Volume"}.</div>
-      <div class="row3"><button id="profDefault">Load default</button><button id="profSave">Save mine</button><button id="profLoad"${savedProfile() ? "" : " disabled"}>Load mine</button></div>
+      <div class="row3"><button id="profDefault">Load default</button><button id="profSave">Save mine</button><button id="profLoad"${savedProfile() ? "" : " disabled"}>Load mine</button></div></div>
     </div>`;
+  const q = $("indQ"); q.oninput = () => { IND_Q = q.value; filterInd(); }; filterInd();
   panMenu.innerHTML = `<div class="mh">Bottom panels</div>${PANE_ORDER.map(k => itemHTML("pan", k)).join("")}
     <div class="mh">Sizing</div>
     <div class="note">Drag the top edge of any panel to resize it. Double-click (double-tap) an edge to reset that panel. Phone and desktop layouts keep separate sizes.</div>
@@ -1953,11 +2233,20 @@ function buildMenus() {
     <label><input type="checkbox" id="wakeChk"${cfg.wake ? " checked" : ""}${wakeSupported() ? "" : " disabled"}> Keep screen on while this page is open</label>
     ${wakeSupported() ? "" : '<div class="note">Needs the page to be hosted (https). Not available when opened as a file.</div>'}
     <div class="mh">Layout</div>
-    <label><input type="checkbox" id="profShow"${cfg.profShow ? " checked" : ""}> Show delta profile column</label>`;
+    <label><input type="checkbox" id="profShow"${cfg.profShow ? " checked" : ""}> Show delta profile column</label>
+    <div class="mh">Appearance</div>
+    <label>Background <select id="thMode">${[["auto", "Auto (time of day)"], ["midnight", "Midnight"], ["morning", "Morning"], ["day", "Slate"], ["evening", "Dusk"], ["night", "Night"], ["custom", "Custom"]].map(([v, l]) => `<option value="${v}"${cfg.theme.mode === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
+    ${cfg.theme.mode === "custom" ? `<div class="row3"><label>Top <input type="color" id="thTop" value="${cfg.theme.top}"></label><label>Bottom <input type="color" id="thBot" value="${cfg.theme.bot}"></label></div>` : ""}
+    ${cfg.theme.mode === "auto" ? `<div class="trk">${["Morning", "Day", "Evening", "Night"].map((nm, i) => `<label>${nm} <select data-th="${i}">${Array.from({length:24}, (_, h) => `<option value="${h}"${cfg.theme.h[i] === h ? " selected" : ""}>${String(h).padStart(2, "0")}:00</option>`).join("")}</select></label>`).join("")}</div>
+    <div class="note">Follows this device's clock and blends over 30 minutes at each change. Now: ${themeNowLabel()}. Night is a softer slate with brighter labels, for reading in a dark room.</div>` : ""}`;
   $("refresh").value = String(cfg.refresh);
   $("saver").onchange = e => { cfg.saver = e.target.checked; if (cfg.saver) { cfg.bubbles = false; $("bubbles").checked = false; } saveCfg(); resize(); };
   $("wakeChk").onchange = e => { cfg.wake = e.target.checked; cfg.wakeSet = true; saveCfg(); applyWake(); };
   $("profShow").onchange = e => { cfg.profShow = e.target.checked; saveCfg(); resize(); };
+  $("thMode").onchange = e => { cfg.theme.mode = e.target.value; cfg.themeSet = true; saveCfg(); applyTheme(true); buildMenus(); };
+  for (const id of ["thTop", "thBot"]) { const el = $(id); if (el) el.oninput = () => { cfg.theme[id === "thTop" ? "top" : "bot"] = el.value; saveCfg(); applyTheme(true); }; }
+  panMenu.querySelectorAll("[data-th]").forEach(el => el.onchange = () => { const i = +el.dataset.th, v = +el.value, h = cfg.theme.h.slice(); h[i] = v;
+    if (h.every((x, k) => k === 0 || x > h[k - 1])) { cfg.theme.h = h; saveCfg(); applyTheme(true); } else el.value = String(cfg.theme.h[i]); buildMenus(); });
   $("profDefault").onclick = () => { const d = clone(DEF); if (PHONE) d.ind.fib.on = false; applyProfile(d); };
   $("profSave").onclick = () => { try { localStorage.setItem("fp_profile", JSON.stringify({ind:cfg.ind, pan:cfg.pan, sr:cfg.sr})); } catch (e) {} buildMenus(); flash("profSave", "Saved ✓"); };
   $("profLoad").onclick = () => { const sp = savedProfile(); if (sp) applyProfile(sp); };
@@ -1979,7 +2268,9 @@ for (const menu of [indMenu, panMenu]) {
     if (t.dataset.on) { const [scope, key] = t.dataset.on.split(":"); (scope === "ind" ? cfg.ind : cfg.pan)[key].on = t.checked; settingsChanged(); }
   });
   menu.addEventListener("input", e => { const t = e.target; if (t.dataset.sr) { cfg.sr[t.dataset.sr] = t.value; PV++; saveCfg(); needBase = true; } });
-  menu.addEventListener("click", e => { const b = e.target.closest("[data-gear]"); if (b) { e.stopPropagation(); const [scope, key] = b.dataset.gear.split(":"); openSettings(scope, key, b); } });
+  menu.addEventListener("click", e => {
+    const fv = e.target.closest("[data-fav]"); if (fv) { e.stopPropagation(); const id = fv.dataset.fav; if (cfg.fav[id]) delete cfg.fav[id]; else cfg.fav[id] = true; saveCfg(); buildMenus(); return; }
+    const b = e.target.closest("[data-gear]"); if (b) { e.stopPropagation(); const [scope, key] = b.dataset.gear.split(":"); openSettings(scope, key, b); } });
 }
 function openSettings(scope, key, anchor) {
   const meta = scope === "ind" ? IMETA[key] : PMETA[key], c = scope === "ind" ? cfg.ind[key] : cfg.pan[key];
@@ -1992,6 +2283,8 @@ function openSettings(scope, key, anchor) {
   for (const [k, nm] of meta.colors) h += `<label class="f">${nm} <input type="color" data-c="${k}"></label>`;
   if (meta.width) h += `<label class="f">Line width <select data-w><option value="1">1</option><option value="1.5">1.5</option><option value="2">2</option><option value="3">3</option></select></label>`;
   if (meta.auto) h += `<label class="f"><span>Auto S/R colors (yellow above price, purple below)</span><input type="checkbox" data-auto></label>`;
+  if (meta.pick) h += `<div class="row3"><button data-pick>Pick bar on chart</button><span class="note">${c.at ? "Anchored at " + new Date(c.at).toLocaleString(undefined, {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"}) : "Click (or tap) a bar after pressing this"}</span></div>`;
+  if (meta.tip) h += `<div class="note">${meta.tip}</div>`;
   h += `<div class="row3" style="justify-content:space-between;margin-top:4px"><button data-reset>Reset to default</button><button data-close>Done</button></div>`;
   setPop.innerHTML = h; setPop.dataset.scope = scope; setPop.dataset.key = key;
   setPop.querySelectorAll("[data-k]").forEach(el => el.value = String(c[el.dataset.k]));
@@ -2025,6 +2318,7 @@ setPop.addEventListener("input", e => { if (e.target.dataset.c) onPopInput(e); }
 setPop.addEventListener("click", e => {
   e.stopPropagation();
   if (e.target.closest("[data-close]")) { setPop.hidden = true; return; }
+  if (e.target.closest("[data-pick]")) { PICK.on = true; setPop.hidden = true; document.querySelectorAll(".menu-pop").forEach(m => m.hidden = true); document.querySelector("header").classList.remove("open"); updateStatus(); return; }
   if (e.target.closest("[data-reset]")) { const {scope, key, c, d} = popTarget(); const on = c.on; Object.assign(c, clone(d), {on}); settingsChanged();
     openSettings(scope, key, document.querySelector(`[data-gear="${scope}:${key}"]`) || $(scope === "ind" ? "indBtn" : "panBtn")); }
 });
@@ -2037,7 +2331,7 @@ setPop.addEventListener("click", e => {
     pop.addEventListener("click", e => e.stopPropagation()); }
   const closeAll = () => { menus.forEach(([, q]) => q.hidden = true); setPop.hidden = true; };
   document.addEventListener("click", closeAll);
-  document.addEventListener("keydown", e => { if (e.key === "Escape") closeAll(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") { closeAll(); if (PICK.on) { PICK.on = false; updateStatus(); } } });
 }
 
 buildMenus();

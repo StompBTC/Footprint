@@ -2,6 +2,16 @@
 
 Every version listed here is in the `versions/` folder.
 
+## 0.09 — Cleaner phone layout, day/night backgrounds, more indicators
+- Phone: slimmer top bar; floating pause button, with a Live button that appears when you scroll back; one-line status (tap for details)
+- Price axis sizes itself to each coin's prices so they're never cut off; the delta profile narrows (then drops its labels) on small screens
+- Backgrounds: Auto (follows the time of day, 30-minute blends), Midnight, Morning, Slate, Dusk, Night, or Custom colors; phones default to Auto, desktop stays on Midnight
+- Night is a lifted, low-glare slate with brighter labels for dark rooms
+- New order-flow tools: stacked imbalances, value area (VAH / VAL / POC), delta divergence
+- New indicators: anchored VWAP (pick any bar), Supertrend, Keltner and Donchian channels, pivot points (daily or weekly), prior-week high / low
+- New panels: OBV, ATR, ADX / DMI
+- Indicators menu: grouped by category, with search and favorites
+
 ## 0.08 — Phone fixes
 - Phones keep the screen on by default (re-requested on the next tap if Android drops it)
 - Auto Fib is off by default on phones, where it clutters a small screen; still available under Indicators

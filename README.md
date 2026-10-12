@@ -15,7 +15,7 @@ All of the code is in one readable file. Desktop and phone run the same code; th
 ## Use it
 
 - **Desktop:** download `desktop/footprint.html` and open it in Chrome or Edge. It runs straight from your computer.
-- **Phone (Android):** open the hosted link in Chrome (link to be added), then menu > Add to Home screen > Install.
+- **Phone (Android):** open [stompbtc.github.io/Footprint](https://stompbtc.github.io/Footprint/) in Chrome, then menu > Add to Home screen > Install.
 
 ## What's in here
 
@@ -23,10 +23,10 @@ All of the code is in one readable file. Desktop and phone run the same code; th
 | --- | --- |
 | `desktop/footprint.html` | Desktop version: one file you download and open |
 | `index.html`, `manifest.webmanifest`, `sw.js`, icons | Phone / web version, served by GitHub Pages so it installs like an app |
-| `versions/` | Every version, 0.01 through 0.08 |
+| `versions/` | Every version, 0.01 through 0.09 |
 | `Footprint-White-Paper.pdf` | How it works and what changed in each version, in plain language and technical detail |
 
-What changed in each version is in [CHANGELOG.md](CHANGELOG.md). The current version is 0.08.
+What changed in each version is in [CHANGELOG.md](CHANGELOG.md). The current version is 0.09.
 
 ## Disclaimer
 
