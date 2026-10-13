@@ -90,7 +90,7 @@ body.mob .cats{columns:1}
 body.mob .menu-pop label{white-space:normal}
 body.mob .note{max-width:none}
 #chartNotes{flex:1 1 220px;min-width:0;display:flex;gap:14px;overflow:hidden;white-space:nowrap;font-size:12px;color:#aab6c8}
-#chartNotes span{overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+.chip{flex:none!important;display:inline-block;min-width:54px;text-align:center;padding:0 6px;border:1px solid currentColor;border-radius:9px;font:600 11px ui-monospace,Consolas,monospace;line-height:16px;white-space:nowrap;opacity:.9}
 body.mob #chartNotes{display:none}
 body.mob #status{gap:10px;padding:4px 8px;font-size:11.5px}
 body.mob #tip{font-size:10.5px;white-space:pre-wrap;max-width:calc(100% - 16px)}
@@ -119,6 +119,7 @@ body.mob #status:not(.exp) > span{flex:none}
   <label>Row <select id="row"></select></label>
   <label>Cells <select id="mode">
     <option value="delta">Delta</option><option value="bidask">Sell × Buy</option><option value="vol">Volume</option></select></label>
+  <label>Footprint <select id="fpView"><option value="hover">On hover / tap</option><option value="always">Always</option></select></label>
   <label>Highlight ≥ <select id="thr">
     <option value="auto">Auto</option><option value="100000">$100K</option><option value="250000">$250K</option>
     <option value="500000">$500K</option><option value="1000000">$1M</option><option value="2000000">$2M</option>
@@ -196,7 +197,7 @@ const PHONE = (() => { try { return matchMedia("(pointer:coarse)").matches && Ma
 /* ---------- Settings ---------- */
 const DEF = {
   coin:"BTC", track:"viewed", trackSet:{BTC:true, ETH:false, SOL:false, XRP:false, LTC:false, DOGE:false},
-  tfs:300, rowI:"auto", mode:"delta", thr:"auto", units:"usd", prof:"visible", candles:true, abs:true,
+  tfs:300, rowI:"auto", mode:"delta", thr:"auto", units:"usd", prof:"visible", candles:true, abs:true, fpView:"hover", details:false,
   bubbles:false, bigMinC:{BTC:500000, ETH:250000, SOL:100000, XRP:100000, LTC:50000, DOGE:50000}, hours:24, refresh:500,
   role:"collector", saver:false, wake:false, wakeSet:false, theme:{mode:"midnight", top:"#1d2531", bot:"#121821", h:[6, 10, 17, 21]}, themeSet:false, profShow:true, phM:{vol:52, rsi:72, cvd:52, macd:72, stoch:64, obv:52, atr:52, adx:64}, fav:{}, avPick:false,
   store:"browser", retain:30, restore:true, backfill:true, seed:true, gapReset:false, loadRange:24, expRange:"mem", expSettings:true, venues:{coinbase:true, kraken:true, bitstamp:true},
@@ -221,7 +222,7 @@ const DEF = {
     lvDay:{on:false, color:"#e2e8f0", auto:false},
     lvPrior:{on:false, color:"#94a3b8", auto:true},
     lvPvwap:{on:false, color:"#38bdf8", auto:false},
-    fib:{on:true, anchor:"visible", customH:6, res:"#f5d020", sup:"#c084fc"},
+    fib:{on:false, anchor:"visible", customH:6, res:"#f5d020", sup:"#c084fc"},
     imb:{on:false, ratio:3, rows:3, extend:true, buy:"#22c08f", sell:"#ef5054"},
     va:{on:false, pct:70, color:"#94a3b8", poc:"#d8b24a"},
     div:{on:false, len:5, bull:"#22c08f", bear:"#ef5054"},
@@ -653,7 +654,6 @@ const fmtRow = rs => "$" + (rs >= 1 ? String(rs) : String(+rs.toPrecision(3)));
 const coinOf = () => CUR.c;
 const bigMin = () => cfg.bigMinC[CUR.c] || COINS[CUR.c].big;
 function hhmm(t) { const d = new Date(t), p2 = n => String(n).padStart(2, "0"); return p2(d.getHours()) + ":" + p2(d.getMinutes()) + (isDev() ? ":" + p2(d.getSeconds()) : ""); }
-function noteTime(t) { const d = new Date(t); return (d.toDateString() === new Date().toDateString() ? "" : d.toLocaleDateString(undefined, {month:"short", day:"numeric"}) + " ") + hhmm(t); }
 function fmtDur(ms) { const m = Math.max(1, Math.round(ms / 60000)); if (m < 60) return m + "m"; const h = Math.floor(m / 60);
   return h < 48 ? `${h}h ${m % 60}m` : `${Math.floor(h / 24)}d ${h % 24}h`; }
 function pct(sorted, q) { return sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] : 0; }
@@ -881,7 +881,8 @@ function drawBase() {
   const showText = cw >= 34 && rowPx >= 11, absMarks = [], texts = [];
   // compact view: once cell numbers can't be read (zoomed out), the cell boxes give way to plain candles and
   // the bar delta row below carries the order flow. Zooming back in brings the cells back.
-  const compact = !showText;
+  // "hover" (default): plain candles; the footprint of the hovered / tapped candle is drawn on the overlay layer
+  const compact = cfg.fpView === "hover" || !showText;
   for (const o of cols) {
     o.abs = [];
     if (compact) continue;
@@ -1158,18 +1159,32 @@ function drawBase() {
   const sy = cy1 + 4;
   g.fillStyle = C.strip; g.fillRect(0, cy1, cx1, DELTA_H + panesH); g.fillRect(px0, cy1, PROF_W, DELTA_H + panesH);
   g.strokeStyle = C.line; g.beginPath(); g.moveTo(0, cy1 + 0.5); g.lineTo(cx1, cy1 + 0.5); g.stroke();
-  for (const o of cols) {
-    const cx = o.x + COL_GAP / 2, t = tier(Math.abs(o.delUsd), barThr);
-    if (cw >= 8) roundRect(g, cx, sy + 3, cw, 24, 3); else { g.beginPath(); g.rect(cx, sy + 3, cw, 24); } g.fillStyle = t === 0 ? C.cell : rgba(o.del >= 0 ? C.buy : C.sell, t === 2 ? 0.9 : 0.35); g.fill();
+  // three stages as bars narrow: delta + volume numbers → delta only, written upright in a taller box →
+  // a delta histogram (up green / down red, height = size), which stays readable at any zoom
+  const stripMode = cw >= 30 ? "full" : cw >= 11 ? "upright" : "hist", boxH = stripMode === "upright" ? DELTA_H - 10 : 24;
+  const fillOf = o => { const t = tier(Math.abs(o.delUsd), barThr); return t === 0 ? C.cell : rgba(o.del >= 0 ? C.buy : C.sell, t === 2 ? 0.9 : 0.35); };
+  if (stripMode === "hist") {
+    const mid = sy + (DELTA_H - 8) / 2, half = (DELTA_H - 14) / 2; let mx = 1; for (const o of cols) mx = Math.max(mx, Math.abs(o.delUsd));
+    g.strokeStyle = C.grid2; g.beginPath(); g.moveTo(0, mid + 0.5); g.lineTo(cx1, mid + 0.5); g.stroke();
+    for (const o of cols) { const hgt = Math.max(1, Math.abs(o.delUsd) / mx * half), t = tier(Math.abs(o.delUsd), barThr);
+      g.fillStyle = rgba(o.del >= 0 ? C.buyHi : C.sellHi, t === 2 ? 0.95 : t === 1 ? 0.65 : 0.4);
+      g.fillRect(o.x + COL_GAP / 2, o.del >= 0 ? mid - hgt : mid + 1, Math.max(1, cw), hgt); }
+  } else for (const o of cols) {
+    const cx = o.x + COL_GAP / 2;
+    roundRect(g, cx, sy + 3, cw, boxH, 3); g.fillStyle = fillOf(o); g.fill();
   }
-  if (cw >= 30) {
+  const numCol = o => tier(Math.abs(o.delUsd), barThr) === 0 ? (o.del >= 0 ? "#7fbfae" : "#cf8a8b") : "#fff";
+  if (stripMode === "full") {
     g.textAlign = "center"; g.font = "600 13px " + C.mono;
-    for (const o of cols) { const t = tier(Math.abs(o.delUsd), barThr); g.fillStyle = t === 0 ? (o.del >= 0 ? "#7fbfae" : "#cf8a8b") : "#fff"; g.fillText(fmtAmt(o.del, o.mid), colX(o), sy + 15.5, cw - 4); }
+    for (const o of cols) { g.fillStyle = numCol(o); g.fillText(fmtAmt(o.del, o.mid), colX(o), sy + 15.5, cw - 4); }
     g.fillStyle = C.muted2; g.font = "11px " + C.mono;
     for (const o of cols) g.fillText(fmtAmt(o.agg.buy + o.agg.sell, o.mid), colX(o), sy + 40, cw - 4);
+  } else if (stripMode === "upright") {
+    g.textAlign = "center"; g.textBaseline = "middle"; g.font = "600 " + (cw >= 16 ? 11 : 10) + "px " + C.mono;
+    for (const o of cols) { g.save(); g.translate(colX(o), sy + 3 + boxH / 2); g.rotate(-Math.PI / 2); g.fillStyle = numCol(o); g.fillText(fmtAmt(o.del, o.mid), 0, 0.5, boxH - 4); g.restore(); }
   }
   if (PROF_W && LBL >= 30) { g.textAlign = "right"; g.fillStyle = C.text; g.font = "600 11px system-ui"; g.fillText(MOB ? "Δ" : "Bar delta", px0 + LBL - 6, sy + 15.5);
-    g.fillStyle = C.muted; g.font = "11px system-ui"; g.fillText(MOB ? "Vol" : "Volume", px0 + LBL - 6, sy + 40); }
+    if (stripMode === "full") { g.fillStyle = C.muted; g.font = "11px system-ui"; g.fillText(MOB ? "Vol" : "Volume", px0 + LBL - 6, sy + 40); } }
 
   // bottom panels
   const dividers = []; let py = cy1 + DELTA_H;
@@ -1296,15 +1311,9 @@ function drawBase() {
       const filled = vs.filter(v => st[v] === "filled"), missing = vs.filter(v => st[v] !== "filled" && st[v] !== "pending"), pending = vs.some(v => st[v] === "pending");
       const col = !m.rec ? "#6b7480" : pending ? "#7dd3fc" : missing.length ? "#d8b24a" : "#5f9d8d";
       g.strokeStyle = col; g.globalAlpha = 0.85; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(Math.round(m.x) + 0.5, cy0); g.lineTo(Math.round(m.x) + 0.5, H - TIME_H); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
-      // the line stays on the chart; its text goes to the header (desktop) or the status row (phone)
-      const when = noteTime(m.t0), dur = fmtDur(m.t1 - m.t0);
-      let full = `Gap ${when} · ${dur}`;
-      if (pending) full += " · backfilling…";
-      else if (m.rec) { if (filled.length) full += " · filled: " + filled.map(v => VNAME[v]).join(", ");
-        if (missing.length) full += " · missing: " + missing.map(v => VNAME[v] + (st[v] === "partial" ? " (partly)" : "")).join(", "); }
-      const stt = pending ? "backfilling…" : !m.rec ? "" : missing.length ? "missing " + missing.map(v => VNAME[v]).join(", ") : filled.length ? "filled" : "";
+      // the line stays on the chart; a chip goes to the header (desktop) or the status row (phone)
       const mk = pending ? " …" : !m.rec ? "" : missing.length ? " !" : filled.length ? " ✓" : "";
-      notes.push({kind:"gap", t:m.t0, full, text:`Gap ${when} · ${dur}${stt ? " · " + stt : ""}`, short:`Gap ${when} ${dur}${mk}`, col});
+      notes.push({kind:"gap", t:m.t0, short:`↯ ${hhmm(m.t0)}${mk}`, col});
     });
   }
 
@@ -1318,11 +1327,9 @@ function drawBase() {
         const k = Math.round(st / 60000); if (!byT.has(k)) byT.set(k, {t:st, late:[]}); byT.get(k).late.push(v); }
       for (const {t, late} of byT.values()) {
         if (t < t0v || t > t1v) continue;
-        const before = Object.keys(sd.from).filter(v => sd.from[v] < t - 60000 && sd.st[v] === "ok");
         const c = cols.find(cc => cc.T + tfMs > t) || cols[cols.length - 1], x = Math.round(c.x + COL_GAP / 2 + Math.max(0, Math.min(1, (t - c.T) / tfMs)) * cw) + 0.5;
         g.strokeStyle = "#8b9bb4"; g.globalAlpha = 0.7; g.setLineDash([1, 3]); g.beginPath(); g.moveTo(x, cy0); g.lineTo(x, H - TIME_H); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
-        const who = before.length ? before.map(v => VNAME[v]).join(" + ") + " only" : "Partial history", when = noteTime(t);
-        notes.push({kind:"seed", t, full:`◂ ${who} before ${when} · ${late.map(v => VNAME[v]).join(", ")} from ${when}`, text:`◂ ${who} before ${when}`, short:`${who} ◂${when}`});
+        notes.push({kind:"seed", t, short:`◐ ${hhmm(t)}`});
       }
     }
   }
@@ -1350,14 +1357,15 @@ function drawBase() {
     for (const it of items) { g.fillStyle = it[1]; g.fillRect(lx, TOP / 2 - 1, 12, 2.5); g.fillStyle = C.muted; g.fillText(it[0], lx + 16, TOP / 2); lx += widthOf(it); } }
   document.title = (lastPx ? fmtPx(lastPx) + " · " : "") + (PAUSE.on ? "Paused · " : "") + CUR.c + " Footprint";
 
-  const nsig = notes.map(n => n.text).join("|"); if (nsig !== chartNotesSig) { chartNotesSig = nsig; chartNotes = notes; updateStatus(); }
-  layout = {cols, rs, y, lo, hi, cx1, cy0, cy1, px0, axX, cw, rowPx, panes, dividers, IND, prof, colX, profBtn, paneBot:H - TIME_H, inv:yy => lo + (cy1 - yy) / ppd};
+  const nsig = notes.map(n => n.short).join("|"); if (nsig !== chartNotesSig) { chartNotesSig = nsig; chartNotes = notes; updateStatus(); }
+  layout = {cols, rs, y, lo, hi, cx1, cy0, cy1, px0, axX, cw, rowPx, thr, showText, panes, dividers, IND, prof, colX, profBtn, paneBot:H - TIME_H, inv:yy => lo + (cy1 - yy) / ppd};
   placeFab(cy1);
 }
 
 /* ---------- Overlay layer ---------- */
 function hideTip() { tip.style.display = "none"; }
 function showTip(text, left, top) {
+  if (!cfg.details) { hideTip(); return; }   // details box is optional (Panels › Layout); off by default
   tip.textContent = text; tip.style.display = "block";
   const tw = tip.offsetWidth, th = tip.offsetHeight;
   if (MOB) {   // phone: a card pinned to the top or bottom edge, away from the finger
@@ -1375,6 +1383,46 @@ function drawCandle(g, L, o, withLabels) {
   g.fillStyle = col; g.fillRect(mx - bw / 2, yt, bw, Math.max(1.5, yb - yt));
   if (withLabels) { g.font = "600 10px " + C.mono; g.textAlign = "left"; g.textBaseline = "middle"; g.fillStyle = "#e6edf3";
     g.fillText("H " + fmtPx(o.h), mx + bw / 2 + 4, L.y(o.h) - 6); g.fillText("L " + fmtPx(o.l), mx + bw / 2 + 4, L.y(o.l) + 7); }
+}
+// footprint of one candle on demand: drawn over the candle, widened if needed so its numbers fit
+function drawHoverFootprint(g, L, o) {
+  const rs = L.rs, rows = [...o.agg.rows].filter(([d]) => d * rs <= L.hi && d * rs + rs >= L.lo).sort((a, b) => b[0] - a[0]);
+  if (!rows.length) return;
+  const vol = cfg.mode === "vol", val = v => vol ? v[0] + v[1] : v[0] - v[1];
+  const txt = (v, mid) => cfg.mode === "bidask" ? fmtAmt(v[1], mid) + "×" + fmtAmt(v[0], mid) : fmtAmt(val(v), mid);
+  g.save(); g.beginPath(); g.rect(0, L.cy0, L.cx1, L.cy1 - L.cy0); g.clip();
+  g.textAlign = "center"; g.textBaseline = "middle";
+  {
+    const fs = 10, cw = Math.max(L.cw, cfg.mode === "bidask" ? 84 : 46), hh = Math.max(1, L.rowPx - 1), cx = Math.round(L.colX(o) - cw / 2);
+    const top = L.y(Math.ceil(o.h / rs) * rs), bot = L.y(Math.floor(o.l / rs) * rs);
+    g.fillStyle = rgba(C.bg, .9); g.fillRect(cx - 3, top - 3, cw + 6, bot - top + 6);
+    for (const [d, v] of rows) { const p0 = d * rs, mid = p0 + rs / 2, yt = L.y(p0 + rs), t = tier(Math.abs(val(v)) * mid, L.thr);
+      g.fillStyle = cellFill(v[0] - v[1], t, vol); g.fillRect(cx, yt, cw, hh);
+      if (d === o.agg.poc) { g.strokeStyle = "rgba(216,178,74,.85)"; g.strokeRect(cx + 0.5, yt + 0.5, cw - 1, hh - 1); }
+      if (hh >= 10) { g.font = (t === 2 ? "600 " : "") + fs + "px " + C.mono; g.fillStyle = cellText(vol ? 1 : v[0] - v[1], t); g.fillText(txt(v, mid), cx + cw / 2, yt + hh / 2 + 0.5, cw - 4); } }
+    g.strokeStyle = o.c >= o.o ? C.buyHi : C.sellHi; g.lineWidth = 1.5; g.strokeRect(cx - 1.5, top - 1.5, cw + 3, bot - top + 3); g.lineWidth = 1;
+    // stacked imbalances on this candle (same rule as the overlay): an edge bar on each run of rows
+    const I = cfg.ind.imb, get = d => o.agg.rows.get(d) || [0, 0];
+    if (I.on) { const ds = rows.map(r => r[0]).sort((a, b) => a - b), minUsd = L.thr * 0.05;
+      for (const side of ["buy", "sell"]) { let run = [];
+        const flush = () => { if (run.length >= I.rows) { const yt = L.y((run[run.length - 1] + 1) * rs), yb = L.y(run[0] * rs);
+          g.fillStyle = side === "buy" ? I.buy : I.sell; g.fillRect(side === "buy" ? cx + cw - 3 : cx, yt, 3, yb - yt); } run = []; };
+        for (const d of ds) { const v = get(d), mid = d * rs + rs / 2;
+          const ok = side === "buy" ? v[0] * mid >= minUsd && v[0] >= I.ratio * Math.max(get(d - 1)[1], 1e-12) : v[1] * mid >= minUsd && v[1] >= I.ratio * Math.max(get(d + 1)[0], 1e-12);
+          if (ok && (!run.length || d === run[run.length - 1] + 1)) run.push(d); else { flush(); if (ok) run.push(d); } }
+        flush(); } }
+    // absorption on this candle (same rule as the overlay): heavy aggression at the bar's extreme that price rejected
+    if (cfg.abs && o.h > o.l) { let bull = null, bear = null; const rng = o.h - o.l;
+      for (const [d, v] of rows) { const p0 = d * rs, mid = p0 + rs / 2, del = v[0] - v[1], u = Math.abs(del) * mid; if (u < L.thr * 1.5) continue;
+        if (del < 0 && p0 <= o.l + rng * 0.3 && o.c >= p0 + rs * 3 && (!bull || u > bull.u)) bull = {d, u};
+        if (del > 0 && p0 + rs >= o.h - rng * 0.3 && o.c <= p0 - rs * 2 && (!bear || u > bear.u)) bear = {d, u}; }
+      for (const [m, isBull] of [[bull, true], [bear, false]]) { if (!m) continue;
+        const yt = L.y((m.d + 1) * rs), col = isBull ? C.buyHi : C.sellHi;
+        g.strokeStyle = "#ffffff"; g.lineWidth = 1.5; g.strokeRect(cx - 0.5, yt - 0.5, cw + 1, hh + 1); g.lineWidth = 1;
+        g.font = "600 9.5px system-ui"; const tw = g.measureText("ABS").width + 8, ly = isBull ? bot + 6 : top - 20, lx = cx + cw / 2 - tw / 2;
+        roundRect(g, lx, ly, tw, 14, 3); g.fillStyle = rgba(col, 0.92); g.fill(); g.fillStyle = "#fff"; g.fillText("ABS", cx + cw / 2, ly + 7.5); } }
+  }
+  g.restore();
 }
 function indLine(o) {
   const I = layout.IND, i = o.i, parts = [];
@@ -1408,7 +1456,7 @@ Traded in ${n} of ${L.cols.length} visible bars (highlighted)${MOB ? "\nTap the 
   if (x > L.cx1 || my < L.cy0 || my > L.paneBot) { hideTip(); return; }
   const inPrice = my <= L.cy1, o = L.cols.find(c => x >= c.x && x < c.x + view.barW);
   if (o) { g.fillStyle = "rgba(255,255,255,.035)"; g.fillRect(o.x + 2, L.cy1, view.barW - 4, L.paneBot - L.cy1);
-    if (inPrice && cfg.candles) drawCandle(g, L, o, true); }
+    if (cfg.fpView === "hover") drawHoverFootprint(g, L, o); else if (inPrice && cfg.candles) drawCandle(g, L, o, true); }
   g.strokeStyle = "rgba(200,210,220,.3)"; g.setLineDash([4, 4]);
   g.beginPath(); g.moveTo(x + 0.5, L.cy0); g.lineTo(x + 0.5, L.paneBot); if (inPrice) { g.moveTo(0, my + 0.5); g.lineTo(L.axX, my + 0.5); } g.stroke(); g.setLineDash([]);
   if (inPrice) { g.fillStyle = C.chipHi; roundRect(g, L.axX + 2, my - 9, AXIS_W - 4, 18, 3); g.fill(); g.fillStyle = C.text; g.textAlign = "left";
@@ -1597,15 +1645,19 @@ const statusEl = $("status");
 function hms(t) { const d = new Date(t), p2 = n => String(n).padStart(2, "0"); return p2(d.getHours()) + ":" + p2(d.getMinutes()); }
 function fmtMB(b) { return b == null ? "—" : b >= 1e9 ? (b / 1e9).toFixed(1) + " GB" : Math.max(0.1, b / 1e6).toFixed(b >= 1e8 ? 0 : 1) + " MB"; }
 let statusExp = false, chartNotes = [], chartNotesSig = "", deskNotesSig = null;
-function renderDeskNotes() {   // desktop: gap / partial-history notes for the bars in view, in the header row
+// fixed-size chips: ⟳ loading / backfill progress, ◐ partial history before a time, ↯ gap (✓ filled, ! missing, … in progress)
+function chipsHTML() {
+  const out = [], chip = (t, col) => `<span class="chip" style="color:${col}">${t}</span>`;
+  if (BF.msg) { const m = BF.msg.match(/(\d+)%/), pc = m ? " " + m[1] + "%" : ""; out.push(chip((/^Backfill/.test(BF.msg) ? "⟳ gap" : "⟳") + pc, "#7dd3fc")); }
+  const seeds = chartNotes.filter(n => n.kind === "seed"), gaps = chartNotes.filter(n => n.kind === "gap").sort((a, b) => b.t - a.t);
+  if (seeds.length) out.push(chip(seeds[seeds.length - 1].short, "#aab6c8"));
+  if (gaps.length === 1) out.push(chip(gaps[0].short, gaps[0].col)); else if (gaps.length > 1) out.push(chip("↯ " + gaps.length, gaps[0].col));
+  return out.join("");
+}
+function renderDeskNotes() {   // desktop: the chips sit in the header row
   const el = $("chartNotes"); if (!el) return;
-  const list = MOB ? [] : [...chartNotes.filter(n => n.kind === "seed"), ...chartNotes.filter(n => n.kind === "gap").sort((a, b) => b.t - a.t)];
-  const sig = list.map(n => n.full).join("|"); if (sig === deskNotesSig) return; deskNotesSig = sig;
-  const esc = x => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
-  const seeds = list.filter(n => n.kind === "seed"), gaps = list.filter(n => n.kind === "gap"), sp = n => `<span style="color:${n.col || "#aab6c8"}" title="${esc(n.full)}">${esc(n.text)}</span>`;
-  el.innerHTML = seeds.map(sp).join("") + (gaps.length ? sp(gaps[0]) : "") + (gaps.length > 1 ? `<span style="color:#8b94a1" title="${esc(gaps.slice(1).map(n => n.full).join("\n"))}">+${gaps.length - 1} more gap${gaps.length > 2 ? "s" : ""}</span>` : "");
-  el.title = list.map(n => n.full).join("\n");
-}   // phone: gap / partial-history notes for the bars in view
+  const h = MOB ? "" : chipsHTML(); if (h === deskNotesSig) return; deskNotesSig = h; el.innerHTML = h;
+}
 statusEl.addEventListener("click", () => { if (MOB) { statusExp = !statusExp; updateStatus(); } });
 function updateStatus() {
   if (!CUR) return;
@@ -1624,14 +1676,7 @@ function updateStatus() {
     if (st.quota && st.usage / st.quota > 0.8) parts.push(`<span class="neg">storage nearly full</span>`);
   } else if (!compact) parts.push(`<span class="${S.unsaved && cfg.role !== "viewer" ? "warn" : ""}">${cfg.role === "viewer" ? "Viewer · nothing saved on this device" : S.unsaved ? "Saving off · " + S.unsaved.toLocaleString() + " trades since last export" : "Saving off"}</span>`);
   if (folderOn()) { if (FS.state === "prompt") parts.push(`<span class="warn">Folder needs re-approval (Storage menu)</span>`); else if (FS.state === "ok" && FS.err) parts.push(`<span class="neg">Folder write failed</span>`); }
-  if (MOB && chartNotes.length) {   // compact: the history note plus the latest gap (and how many); expanded: all of them
-    const seeds = chartNotes.filter(n => n.kind === "seed"), gaps = chartNotes.filter(n => n.kind === "gap").sort((a, b) => b.t - a.t);
-    const span = (txt, col) => `<span style="color:${col || "#aab6c8"}${compact ? ";flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : ""}">${txt}</span>`;
-    if (compact) { if (seeds.length) parts.push(span(seeds[seeds.length - 1].short));
-      if (gaps.length) parts.push(span(gaps[0].short + (gaps.length > 1 ? ` +${gaps.length - 1}` : ""), gaps[0].col)); }
-    else { for (const n of seeds) parts.push(span(n.text)); for (const n of gaps) parts.push(span(n.text, n.col)); }
-  }
-  if (BF.msg) parts.push(`<span style="color:#7dd3fc${compact ? ";flex:0 1 auto;overflow:hidden;text-overflow:ellipsis" : ""}">${BF.msg}</span>`);
+  if (MOB) parts.push(chipsHTML());   // phone: the chips sit in the status row
   if (PICK.on) parts.push(`<span class="warn" style="flex:none">${MOB ? "Tap a bar to anchor VWAP" : "Click a bar to anchor the VWAP (Esc to cancel)"}</span>`);
   if (S.hold) parts.push(`<span class="warn">${compact ? "History held" : "History loaded · Live ⟶ to release"}</span>`);
   if (CLK.est != null && (CLK.est > 3000 || CLK.est < -1500)) parts.push(`<span class="warn">Clock ${Math.abs(CLK.est / 1000).toFixed(1)}s ${CLK.est > 0 ? "ahead" : "behind"}${compact ? "" : " of the exchanges"}</span>`);
@@ -2233,7 +2278,7 @@ function bind(id, key, conv, after) {
 }
 bind("tf", "tfs", Number, () => setTimeout(() => maybeSeed(), 300)); bind("mode", "mode", v => v); bind("units", "units", v => v);
 $("row").onchange = e => { cfg.rowI = e.target.value; saveCfg(); rowCache.clear(); profCache.k = ""; needBase = true; };
-bind("thr", "thr", v => v === "auto" ? "auto" : Number(v)); bind("prof", "prof", v => v);
+bind("thr", "thr", v => v === "auto" ? "auto" : Number(v)); bind("prof", "prof", v => v); bind("fpView", "fpView", v => v);
 bind("candles", "candles"); bind("abs", "abs"); bind("bubbles", "bubbles");
 $("bigMin").onchange = e => { cfg.bigMinC[CUR.c] = Math.max(BIG_FLOOR, Number(e.target.value) || M.big); e.target.value = cfg.bigMinC[CUR.c]; saveCfg(); needBase = true; };
 $("coin").innerHTML = COIN_LIST.map(c => `<option value="${c}">${c}</option>`).join("");
@@ -2242,7 +2287,7 @@ $("mobMenu").onclick = e => { e.stopPropagation(); document.querySelector("heade
 VENUES.forEach(v => { const el = $("v_" + v); el.checked = !!cfg.venues[v];
   el.onchange = () => { cfg.venues[v] = el.checked; saveCfg(); if (!COLLECT) return; FEEDS[v].sync(); updateStatus(); }; });
 function syncHeader() {
-  for (const [id, key] of [["tf", "tfs"], ["row", "rowI"], ["mode", "mode"], ["units", "units"], ["thr", "thr"], ["prof", "prof"]]) $(id).value = String(cfg[key]);
+  for (const [id, key] of [["tf", "tfs"], ["row", "rowI"], ["mode", "mode"], ["fpView", "fpView"], ["units", "units"], ["thr", "thr"], ["prof", "prof"]]) $(id).value = String(cfg[key]);
   $("bigMin").value = bigMin();
   for (const id of ["candles", "abs", "bubbles"]) $(id).checked = !!cfg[id];
 }
@@ -2273,7 +2318,7 @@ function buildMenus() {
       <div class="note">Used by levels that have "Auto S/R" switched on in their settings.</div>
       <div class="row3"><label>Resistance <input type="color" data-sr="res" value="${cfg.sr.res}"></label><label>Support <input type="color" data-sr="sup" value="${cfg.sr.sup}"></label></div>
       <div class="mh">Profiles</div>
-      <div class="note">Indicators, panels and colors. Default = ${PHONE ? "SMA 200, RSI, Volume (Auto Fib off on phones)" : "Auto Fib, SMA 200, RSI, Volume"}.</div>
+      <div class="note">Indicators, panels and colors. Default = SMA 200, RSI, Volume (Auto Fib available under Levels).</div>
       <div class="row3"><button id="profDefault">Load default</button><button id="profSave">Save mine</button><button id="profLoad"${savedProfile() ? "" : " disabled"}>Load mine</button></div></div>
     </div>`;
   const q = $("indQ"); q.oninput = () => { IND_Q = q.value; filterInd(); }; filterInd();
@@ -2291,6 +2336,7 @@ function buildMenus() {
     ${wakeSupported() ? "" : '<div class="note">Needs the page to be hosted (https). Not available when opened as a file.</div>'}
     <div class="mh">Layout</div>
     <label><input type="checkbox" id="profShow"${cfg.profShow ? " checked" : ""}> Show delta profile column</label>
+    <label><input type="checkbox" id="detailsChk"${cfg.details ? " checked" : ""}> Details box on hover / tap</label>
     <div class="mh">Appearance</div>
     <label>Background <select id="thMode">${[["auto", "Auto (time of day)"], ["midnight", "Midnight"], ["morning", "Morning"], ["day", "Slate"], ["evening", "Dusk"], ["night", "Night"], ["custom", "Custom"]].map(([v, l]) => `<option value="${v}"${cfg.theme.mode === v ? " selected" : ""}>${l}</option>`).join("")}</select></label>
     ${cfg.theme.mode === "custom" ? `<div class="row3"><label>Top <input type="color" id="thTop" value="${cfg.theme.top}"></label><label>Bottom <input type="color" id="thBot" value="${cfg.theme.bot}"></label></div>` : ""}
@@ -2300,6 +2346,7 @@ function buildMenus() {
   $("saver").onchange = e => { cfg.saver = e.target.checked; if (cfg.saver) { cfg.bubbles = false; $("bubbles").checked = false; } saveCfg(); resize(); };
   $("wakeChk").onchange = e => { cfg.wake = e.target.checked; cfg.wakeSet = true; saveCfg(); applyWake(); };
   $("profShow").onchange = e => { cfg.profShow = e.target.checked; saveCfg(); resize(); };
+  $("detailsChk").onchange = e => { cfg.details = e.target.checked; saveCfg(); needOver = true; };
   $("thMode").onchange = e => { cfg.theme.mode = e.target.value; cfg.themeSet = true; saveCfg(); applyTheme(true); buildMenus(); };
   for (const id of ["thTop", "thBot"]) { const el = $(id); if (el) el.oninput = () => { cfg.theme[id === "thTop" ? "top" : "bot"] = el.value; saveCfg(); applyTheme(true); }; }
   panMenu.querySelectorAll("[data-th]").forEach(el => el.onchange = () => { const i = +el.dataset.th, v = +el.value, h = cfg.theme.h.slice(); h[i] = v;

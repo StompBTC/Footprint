@@ -2,6 +2,15 @@
 
 Every version listed here is in the `versions/` folder.
 
+## 0.11 — Candles by default, footprint on demand
+- The chart shows plain candles; hover (desktop) or tap (phone) a candle to see its footprint in place, widened if needed so the numbers fit
+- New Footprint menu next to Cells: "On hover / tap" (default) or "Always" for the full footprint view
+- Absorption (ABS) and stacked imbalances are marked on the candle you're inspecting
+- Details box is off by default (Panels › Layout to turn it back on)
+- Bar delta row adapts as you zoom out: numbers with volume, then upright delta numbers, then a delta histogram that stays readable at any zoom
+- Loading, gap and partial-history notes are now small fixed chips: ⟳ loading, ◐ partial history, ↯ gap (✓ filled, ! missing, … in progress)
+- Auto Fib is off by default on desktop too (still under Indicators › Levels)
+
 ## 0.10 — Decluttered layout, more bars on screen
 - Gap and partial-history notes moved off the chart: into the status row on phones and the button row on desktop (dotted lines stay on the chart; hover or tap for detail)
 - Phone: one small Pause / Live button beside the bottom panel (❚❚ while live, "▶ Live" when paused, "Live" when scrolled back)
