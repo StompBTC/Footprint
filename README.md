@@ -23,10 +23,10 @@ All of the code is in one readable file. Desktop and phone run the same code; th
 | --- | --- |
 | `desktop/footprint.html` | Desktop version: one file you download and open |
 | `index.html`, `manifest.webmanifest`, `sw.js`, icons | Phone / web version, served by GitHub Pages so it installs like an app |
-| `versions/` | Every version, 0.01 through 0.09 |
+| `versions/` | Every version, 0.01 through 0.10 |
 | `Footprint-White-Paper.pdf` | How it works and what changed in each version, in plain language and technical detail |
 
-What changed in each version is in [CHANGELOG.md](CHANGELOG.md). The current version is 0.09.
+What changed in each version is in [CHANGELOG.md](CHANGELOG.md). The current version is 0.10.
 
 ## Disclaimer
 

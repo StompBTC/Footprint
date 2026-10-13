@@ -2,6 +2,15 @@
 
 Every version listed here is in the `versions/` folder.
 
+## 0.10 — Decluttered layout, more bars on screen
+- Gap and partial-history notes moved off the chart: into the status row on phones and the button row on desktop (dotted lines stay on the chart; hover or tap for detail)
+- Phone: one small Pause / Live button beside the bottom panel (❚❚ while live, "▶ Live" when paused, "Live" when scrolled back)
+- Tap or click the delta-profile heading to hide that column for a wider chart; "◂ Δ" brings it back
+- Volume and RSI values no longer repeated in the right-hand column (they stay beside each panel title)
+- Pinch at any angle changes how many bars fit (about 5 to 80 on a phone); price scaling stays on the price-axis drag
+- Zoomed out, footprint boxes give way to plain candles, with the bar delta row carrying the order flow
+- Shorter phone info line, so it no longer runs into the profile heading
+
 ## 0.09 — Cleaner phone layout, day/night backgrounds, more indicators
 - Phone: slimmer top bar; floating pause button, with a Live button that appears when you scroll back; one-line status (tap for details)
 - Price axis sizes itself to each coin's prices so they're never cut off; the delta profile narrows (then drops its labels) on small screens

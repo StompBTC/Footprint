@@ -89,12 +89,15 @@ body.mob .menu-pop.wide{width:auto}
 body.mob .cats{columns:1}
 body.mob .menu-pop label{white-space:normal}
 body.mob .note{max-width:none}
+#chartNotes{flex:1 1 220px;min-width:0;display:flex;gap:14px;overflow:hidden;white-space:nowrap;font-size:12px;color:#aab6c8}
+#chartNotes span{overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+body.mob #chartNotes{display:none}
 body.mob #status{gap:10px;padding:4px 8px;font-size:11.5px}
 body.mob #tip{font-size:10.5px;white-space:pre-wrap;max-width:calc(100% - 16px)}
 body.mob #pauseBadge{top:30px;font-size:11.5px;white-space:nowrap}
-#fab{position:absolute;left:8px;top:0;display:none;gap:8px;z-index:4;align-items:center}
+#fab{position:absolute;left:8px;top:0;display:none;gap:4px;z-index:4;align-items:center}
 body.mob #fab{display:flex}
-#fab button{height:40px;min-width:40px;border-radius:20px;padding:0 12px;font-size:14px;background:rgba(26,31,42,.82);border:1px solid #2f3747;color:var(--text);box-shadow:0 4px 14px rgba(0,0,0,.45)}
+#fab button{height:24px;min-width:26px;border-radius:12px;padding:0 6px;font-size:10.5px;background:rgba(26,31,42,.82);border:1px solid #2f3747;color:var(--text);box-shadow:0 4px 14px rgba(0,0,0,.45)}
 #fab button[hidden]{display:none}
 #fab button.on{background:rgba(60,50,18,.92);border-color:#6b5a24;color:#f1d48a}
 body.mob #pauseBtn,body.mob #live{display:none}
@@ -145,6 +148,7 @@ body.mob #status:not(.exp) > span{flex:none}
   <input type="file" id="importFile" accept=".json,application/json" hidden>
   <button id="clear">Clear</button>
   </div>
+  <span id="chartNotes"></span>
   <button id="mobMenu" title="More controls">☰</button>
 </header>
 <div id="status"></div>
@@ -153,7 +157,7 @@ body.mob #status:not(.exp) > span{flex:none}
   <canvas id="ov"></canvas>
   <div id="tip"></div>
   <div id="pauseBadge"><span id="pauseTxt">Paused</span><button id="resumeBtn">Resume</button></div>
-  <div id="fab"><button id="fabPause" title="Pause / resume">❚❚</button><button id="fabLive" title="Back to live" hidden>Live</button></div>
+  <div id="fab"><button id="fabBtn" title="Pause / back to live">❚❚</button></div>
 </div>
 </div>
 <div id="setPop" hidden></div>
@@ -649,6 +653,7 @@ const fmtRow = rs => "$" + (rs >= 1 ? String(rs) : String(+rs.toPrecision(3)));
 const coinOf = () => CUR.c;
 const bigMin = () => cfg.bigMinC[CUR.c] || COINS[CUR.c].big;
 function hhmm(t) { const d = new Date(t), p2 = n => String(n).padStart(2, "0"); return p2(d.getHours()) + ":" + p2(d.getMinutes()) + (isDev() ? ":" + p2(d.getSeconds()) : ""); }
+function noteTime(t) { const d = new Date(t); return (d.toDateString() === new Date().toDateString() ? "" : d.toLocaleDateString(undefined, {month:"short", day:"numeric"}) + " ") + hhmm(t); }
 function fmtDur(ms) { const m = Math.max(1, Math.round(ms / 60000)); if (m < 60) return m + "m"; const h = Math.floor(m / 60);
   return h < 48 ? `${h}h ${m % 60}m` : `${Math.floor(h / 24)}d ${h % 24}h`; }
 function pct(sorted, q) { return sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] : 0; }
@@ -765,7 +770,8 @@ function applyTheme(force) {
 }
 
 let AXIS_W = 70, GAP = 28, PROF_W = 176, LBL = 50, MOB = false;
-const TIME_H = 22, DELTA_H = 54, TOP = 26, COL_GAP = 8;
+const TIME_H = 22, DELTA_H = 54, TOP = 26, MIN_BAR = 3;
+let COL_GAP = 8;   // space between bars; shrinks with narrow bars so they never overlap
 const PANE_DEF = {vol:72, rsi:96, cvd:64, macd:96, stoch:84, obv:64, atr:64, adx:84}, PANE_ORDER = ["vol", "obv", "rsi", "cvd", "macd", "stoch", "atr", "adx"];
 let W = 0, H = 0, DPR = 1, needBase = true, needOver = false, lastBase = 0;
 applyTheme(true);
@@ -825,6 +831,7 @@ function drawBase() {
   layout = null;
   const N = SER.T.length;
   if (!N || cx1 < 120 || chH < 60) {
+    if (chartNotesSig) { chartNotesSig = ""; chartNotes = []; updateStatus(); }
     g.fillStyle = C.muted; g.font = "13px system-ui"; g.textAlign = "center"; g.textBaseline = "middle";
     g.fillText(`Waiting for ${CUR.c} trades…`, W / 2, H / 2 - 9);
     g.font = "11.5px system-ui"; g.fillText(cfg.seed ? "History loads a few seconds after the first trade arrives" : "The chart fills from the moment this page is opened", W / 2, H / 2 + 11); return;
@@ -854,7 +861,8 @@ function drawBase() {
   vals.sort((a, b) => a - b); barDel.sort((a, b) => a - b);
   const thr = cfg.thr === "auto" ? Math.max(1000, pct(vals, 0.88)) : +cfg.thr;
   const barThr = Math.max(1000, pct(barDel, 0.7));
-  const cw = Math.max(4, view.barW - COL_GAP), colX = o => o.x + COL_GAP / 2 + cw / 2;
+  COL_GAP = view.barW >= 40 ? 8 : Math.max(1, Math.round(view.barW * 0.2));
+  const cw = Math.max(1, view.barW - COL_GAP), colX = o => o.x + COL_GAP / 2 + cw / 2;
   const xAt = i => x0 + (i - start) * view.barW + COL_GAP / 2 + cw / 2;
 
   // grid + price axis
@@ -871,7 +879,12 @@ function drawBase() {
   // footprint cells (fills first, then all text in one pass to limit font switches)
   g.save(); g.beginPath(); g.rect(0, cy0, cx1, chH); g.clip();
   const showText = cw >= 34 && rowPx >= 11, absMarks = [], texts = [];
+  // compact view: once cell numbers can't be read (zoomed out), the cell boxes give way to plain candles and
+  // the bar delta row below carries the order flow. Zooming back in brings the cells back.
+  const compact = !showText;
   for (const o of cols) {
+    o.abs = [];
+    if (compact) continue;
     const cx = o.x + COL_GAP / 2, hh = Math.max(1, rowPx - 1);
     let bestBull = null, bestBear = null;
     for (const [d, v] of o.agg.rows) {
@@ -891,7 +904,6 @@ function drawBase() {
     const up = o.c >= o.o; g.strokeStyle = rgba(up ? C.buyHi : C.sellHi, 0.65);
     const yH = Math.floor(y(Math.ceil(o.h / rs) * rs)), yL = Math.ceil(y(Math.floor(o.l / rs) * rs));
     g.strokeRect(Math.round(cx) - 1.5, yH - 1.5, Math.round(cw) + 3, yL - yH + 2);
-    o.abs = [];
     if (bestBull) { absMarks.push({x:cx, w:cw, m:bestBull, bull:true}); o.abs.push(bestBull.d); }
     if (bestBear) { absMarks.push({x:cx, w:cw, m:bestBear, bull:false}); o.abs.push(bestBear.d); }
   }
@@ -900,8 +912,14 @@ function drawBase() {
     for (const bold of [false, true]) { g.font = (bold ? "600 " : "") + fs;
       for (const [s, tx, ty, t, col] of texts) if ((t === 2) === bold) { g.fillStyle = col; g.fillText(s, tx, ty, cw - 3); } }
   }
+  if (compact) {   // solid candles
+    const bw = Math.max(1, Math.round(cw * 0.7));
+    for (const o of cols) { const mx = Math.round(colX(o)) + 0.5, col = o.c >= o.o ? C.buyHi : C.sellHi, yt = y(Math.max(o.o, o.c)), yb = y(Math.min(o.o, o.c));
+      g.strokeStyle = col; g.lineWidth = 1; g.beginPath(); g.moveTo(mx, y(o.h)); g.lineTo(mx, y(o.l)); g.stroke();
+      g.fillStyle = col; g.fillRect(Math.round(mx - bw / 2), yt, bw, Math.max(1.5, yb - yt)); }
+  }
   // ghost candles (the hovered candle is drawn clearly on the overlay layer)
-  if (cfg.candles) {
+  else if (cfg.candles) {
     g.globalAlpha = 0.28; const bw = Math.max(3, Math.round(cw * 0.28));
     for (const o of cols) { const mx = Math.round(colX(o)) + 0.5, col = o.c >= o.o ? C.buyHi : C.sellHi, yt = y(Math.max(o.o, o.c)), yb = y(Math.min(o.o, o.c));
       g.strokeStyle = col; g.beginPath(); g.moveTo(mx, y(o.h)); g.lineTo(mx, y(o.l)); g.stroke();
@@ -1029,7 +1047,7 @@ function drawBase() {
   }
   // stacked imbalances: diagonal comparison (buy at a row vs sell one row below, and the reverse),
   // several rows in a row. Marked on the bar's edge; optionally extended right until price trades back into the zone.
-  if (I.imb.on && cols.length) {
+  if (I.imb.on && cols.length && !compact) {
     const c = I.imb, minUsd = thr * 0.05, zones = [];
     for (const o of cols) {
       const ds = [...o.agg.rows.keys()].sort((a, b) => a - b), get = d => o.agg.rows.get(d) || [0, 0];
@@ -1129,7 +1147,12 @@ function drawBase() {
   g.textAlign = "right";
   for (const bold of [false, true]) { g.font = (bold ? "700 " : "600 ") + "10px " + C.mono; for (const [s, ty, b, col] of ptexts) if (b === bold) { g.fillStyle = col; g.fillText(s, bx0 - 5, ty); } }
   g.fillStyle = C.muted; g.textAlign = "left"; g.font = "10.5px system-ui";
-  if (PROF_W) g.fillText(MOB ? (PROF_W >= 76 ? "Δ profile" : "Δ") : "Delta profile · " + (cfg.prof === "visible" ? "visible" : cfg.prof === "session" ? "session (UTC)" : "all stored") + " · hover a row", px0, cy0 - 12, PROF_W + AXIS_W - 6);
+  // the heading doubles as the show / hide switch for the profile column (tap or click it; "◂ Δ" brings it back)
+  if (PROF_W) { const hint = MOB ? "" : "hide ▸", hw = hint ? g.measureText(hint).width + 14 : 0;
+    g.fillText(MOB ? (PROF_W >= 76 ? "Δ profile ▸" : "Δ ▸") : "Delta profile · " + (cfg.prof === "visible" ? "visible" : cfg.prof === "session" ? "session (UTC)" : "all stored") + " · hover a row", px0, cy0 - 12, PROF_W + AXIS_W - 6 - hw);
+    if (hint) { g.textAlign = "right"; g.fillStyle = C.muted2; g.fillText(hint, W - 8, cy0 - 12); g.textAlign = "left"; } }
+  else { g.textAlign = "right"; g.fillStyle = C.muted2; g.font = "600 11px system-ui"; g.fillText("◂ Δ", W - 8, cy0 - 12); g.textAlign = "left"; }
+  const profBtn = PROF_W ? {x0:px0, x1:W, y0:0, y1:cy0} : {x0:W - AXIS_W, x1:W, y0:0, y1:cy0};
 
   // bar delta strip
   const sy = cy1 + 4;
@@ -1137,7 +1160,7 @@ function drawBase() {
   g.strokeStyle = C.line; g.beginPath(); g.moveTo(0, cy1 + 0.5); g.lineTo(cx1, cy1 + 0.5); g.stroke();
   for (const o of cols) {
     const cx = o.x + COL_GAP / 2, t = tier(Math.abs(o.delUsd), barThr);
-    roundRect(g, cx, sy + 3, cw, 24, 3); g.fillStyle = t === 0 ? C.cell : rgba(o.del >= 0 ? C.buy : C.sell, t === 2 ? 0.9 : 0.35); g.fill();
+    if (cw >= 8) roundRect(g, cx, sy + 3, cw, 24, 3); else { g.beginPath(); g.rect(cx, sy + 3, cw, 24); } g.fillStyle = t === 0 ? C.cell : rgba(o.del >= 0 ? C.buy : C.sell, t === 2 ? 0.9 : 0.35); g.fill();
   }
   if (cw >= 30) {
     g.textAlign = "center"; g.font = "600 13px " + C.mono;
@@ -1149,7 +1172,7 @@ function drawBase() {
     g.fillStyle = C.muted; g.font = "11px system-ui"; g.fillText(MOB ? "Vol" : "Volume", px0 + LBL - 6, sy + 40); }
 
   // bottom panels
-  const scaleX = axX + 8, dividers = []; let py = cy1 + DELTA_H;
+  const dividers = []; let py = cy1 + DELTA_H;
   function paneFrame(p, title, valueText, valueColor) {
     p.y0 = py; p.y1 = py + p.h; py += p.h;
     g.fillStyle = C.pane; g.fillRect(0, p.y0, cx1, p.h);
@@ -1160,7 +1183,6 @@ function drawBase() {
     if (valueText) { const tw = g.measureText(title).width; g.font = "600 11px " + C.mono; g.fillStyle = valueColor || C.text; g.fillText(valueText, 16 + tw, p.y0 + 11); }
     return {top:p.y0 + 6, bot:p.y1 - 5};
   }
-  const scaleLabel = (yy, color, txt) => { g.font = "10px " + C.mono; g.textAlign = "left"; g.fillStyle = color; g.fillText(txt, scaleX, yy); };
   function linePath(arr, yv) { g.beginPath(); let st = false; for (const o of cols) { const v = arr[o.i]; if (v == null) { st = false; continue; } if (!st) { g.moveTo(colX(o), yv(v)); st = true; } else g.lineTo(colX(o), yv(v)); } }
   // Oscillator style: fixed 0-100 scale, dim dashed overbought/oversold lines, line that
   // changes color inside the zones, current value tagged on the right axis, no signal arrows.
@@ -1178,10 +1200,7 @@ function drawBase() {
       g.save(); g.beginPath(); g.rect(0, c0, cx1, c1 - c0); g.clip(); linePath(arr, yv); g.strokeStyle = col; g.lineWidth = o.width || 2; g.lineJoin = "round"; g.stroke(); g.restore();
     }
     g.lineWidth = 1;
-    const lv = arr[end];
-    if (lv != null) { const yy = Math.max(top, Math.min(bot, yv(lv))), col = lv >= ob ? obc : lv <= os ? osc : neutral;
-      g.fillStyle = col; roundRect(g, axX + 2, yy - 8, AXIS_W - 4, 16, 3); g.fill();
-      g.fillStyle = C.bg; g.font = "600 10.5px " + C.mono; g.textAlign = "left"; g.fillText(lv.toFixed(1), axX + 8, yy + 0.5); }
+    // no value tag on the right: the panel title already shows the current value
   }
   const at = arr => arr ? arr[end] : null;
   const fx = v => v == null ? "—" : v.toFixed(Math.min(6, M.dec + 1));
@@ -1196,7 +1215,6 @@ function drawBase() {
       for (const o of cols) { g.fillStyle = rgba(o.c >= o.o ? c.up : c.down, 0.72); const yy = yv(vol(o)); g.fillRect(colX(o) - bw2 / 2, yy, bw2, bot - yy); }
       if (IND.volMA) { const ma = []; for (const o of cols) ma[o.i] = IND.volMA[o.i] == null ? null : IND.volMA[o.i] * (usd ? o.mid : 1);
         linePath(ma, yv); g.strokeStyle = rgba(c.ma, 0.85); g.lineWidth = 1.3; g.stroke(); g.lineWidth = 1; }
-      scaleLabel(yv(mx), C.muted, usd ? fmtUsd(mx) : fmtBtc(mx));
     } else if (p.id === "rsi" && IND.rsi) {
       const c = P.rsi, lv = at(IND.rsi);
       const {top, bot} = paneFrame(p, `RSI ${c.len}`, lv == null ? "—" : lv.toFixed(1) + zoneTxt(lv, c.ob, c.os), lv == null ? C.muted : zoneCol(lv, c.ob, c.os, c.obc, c.osc, c.line));
@@ -1260,6 +1278,7 @@ function drawBase() {
     g.fillText(d !== lastDay && k ? new Date(o.T).toLocaleDateString(undefined, {month:"short", day:"numeric"}) : hhmm(o.T), o.x + view.barW / 2, H - TIME_H / 2); lastDay = d; });
 
   // gap markers: time jumps between bars, plus recorded outages (whole page or a single exchange)
+  const notes = [];   // phone: gap / history text goes to the status row instead of onto the chart
   if (cols.length > 1 || S.gaps.length) {
     const th = gapThreshold(), marks = [];
     for (let k = 1; k < cols.length; k++) { if (cols[k].T - cols[k - 1].T > th) marks.push({x:cols[k].x - 1, t0:cols[k - 1].T + tfMs, t1:cols[k].T, rec:null}); }
@@ -1277,13 +1296,15 @@ function drawBase() {
       const filled = vs.filter(v => st[v] === "filled"), missing = vs.filter(v => st[v] !== "filled" && st[v] !== "pending"), pending = vs.some(v => st[v] === "pending");
       const col = !m.rec ? "#6b7480" : pending ? "#7dd3fc" : missing.length ? "#d8b24a" : "#5f9d8d";
       g.strokeStyle = col; g.globalAlpha = 0.85; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(Math.round(m.x) + 0.5, cy0); g.lineTo(Math.round(m.x) + 0.5, H - TIME_H); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
-      let label = "gap · " + fmtDur(m.t1 - m.t0);
-      if (pending) label += " · backfilling…";
-      else if (m.rec) { if (filled.length) label += " · filled: " + filled.map(v => VNAME[v]).join(", ");
-        if (missing.length) label += " · missing: " + missing.map(v => VNAME[v] + (st[v] === "partial" ? " (partly)" : "")).join(", "); }
-      g.font = "600 10px system-ui"; const tw = g.measureText(label).width + 10, lx = Math.min(cx1 - tw - 4, Math.max(4, m.x + 4)), ly = cy0 + 2 + (idx % 2) * 19;
-      roundRect(g, lx, ly, tw, 16, 3); g.fillStyle = rgba(C.bg, .92); g.fill(); g.strokeStyle = rgba(col, 0.7); g.stroke();
-      g.fillStyle = col; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(label, lx + 5, ly + 8.5);
+      // the line stays on the chart; its text goes to the header (desktop) or the status row (phone)
+      const when = noteTime(m.t0), dur = fmtDur(m.t1 - m.t0);
+      let full = `Gap ${when} · ${dur}`;
+      if (pending) full += " · backfilling…";
+      else if (m.rec) { if (filled.length) full += " · filled: " + filled.map(v => VNAME[v]).join(", ");
+        if (missing.length) full += " · missing: " + missing.map(v => VNAME[v] + (st[v] === "partial" ? " (partly)" : "")).join(", "); }
+      const stt = pending ? "backfilling…" : !m.rec ? "" : missing.length ? "missing " + missing.map(v => VNAME[v]).join(", ") : filled.length ? "filled" : "";
+      const mk = pending ? " …" : !m.rec ? "" : missing.length ? " !" : filled.length ? " ✓" : "";
+      notes.push({kind:"gap", t:m.t0, full, text:`Gap ${when} · ${dur}${stt ? " · " + stt : ""}`, short:`Gap ${when} ${dur}${mk}`, col});
     });
   }
 
@@ -1300,10 +1321,8 @@ function drawBase() {
         const before = Object.keys(sd.from).filter(v => sd.from[v] < t - 60000 && sd.st[v] === "ok");
         const c = cols.find(cc => cc.T + tfMs > t) || cols[cols.length - 1], x = Math.round(c.x + COL_GAP / 2 + Math.max(0, Math.min(1, (t - c.T) / tfMs)) * cw) + 0.5;
         g.strokeStyle = "#8b9bb4"; g.globalAlpha = 0.7; g.setLineDash([1, 3]); g.beginPath(); g.moveTo(x, cy0); g.lineTo(x, H - TIME_H); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
-        const label = `← ${before.length ? before.map(v => VNAME[v]).join(" + ") + " only" : "partial history"} · ${late.map(v => VNAME[v]).join(", ")} from here`;
-        g.font = "600 10px system-ui"; const tw = g.measureText(label).width + 10, lx = Math.max(4, Math.min(cx1 - tw - 4, x - tw - 4)), ly = cy1 - 20;
-        roundRect(g, lx, ly, tw, 16, 3); g.fillStyle = rgba(C.bg, .92); g.fill(); g.strokeStyle = "rgba(139,155,180,.6)"; g.stroke();
-        g.fillStyle = "#aab6c8"; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(label, lx + 5, ly + 8.5);
+        const who = before.length ? before.map(v => VNAME[v]).join(" + ") + " only" : "Partial history", when = noteTime(t);
+        notes.push({kind:"seed", t, full:`◂ ${who} before ${when} · ${late.map(v => VNAME[v]).join(", ")} from ${when}`, text:`◂ ${who} before ${when}`, short:`${who} ◂${when}`});
       }
     }
   }
@@ -1317,7 +1336,7 @@ function drawBase() {
   // info line + legend
   g.fillStyle = C.muted; g.textAlign = "left"; g.font = "11px system-ui";
   const unitName = cfg.units === "usd" ? "USD" : CUR.c;
-  if (MOB) g.fillText(`${CUR.c} · Row ${fmtRow(rs)}${cfg.rowI === "auto" ? " auto" : ""} · ${tfLabel(cfg.tfs)} · ${unitName}${PAUSE.on ? " · PAUSED" : view.offset ? " · scrolled (double-tap: live)" : ""}${view.yZoom !== 1 ? " · price scaled" : ""}`, 8, TOP / 2);
+  if (MOB) g.fillText(`${CUR.c} · Row ${fmtRow(rs)}${cfg.rowI === "auto" ? " auto" : ""} · ${tfLabel(cfg.tfs)} · ${unitName}${PAUSE.on ? " · PAUSED" : view.offset ? " · scrolled" : ""}${view.yZoom !== 1 ? " · scaled" : ""}`, 8, TOP / 2, cx1 - 12);
   else g.fillText(`Row ${fmtRow(rs)}${cfg.rowI === "auto" ? " (auto)" : ""} · ${tfLabel(cfg.tfs)}${isDev() ? " (developer · last 2h)" : ""} · ${cfg.mode === "delta" ? "Delta" : cfg.mode === "vol" ? "Volume" : "Sell × Buy"} in ${unitName} · highlight ≥ ${fmtUsd(thr)}${PAUSE.on ? " · PAUSED" : view.offset ? " · scrolled back (double-click for live)" : ""}${view.yZoom !== 1 ? " · price scaled (double-click axis to reset)" : ""}`, 10, TOP / 2);
   { const items = [];
     for (const key in IMETA) { const c = I[key]; if (!c.on) continue;
@@ -1331,7 +1350,8 @@ function drawBase() {
     for (const it of items) { g.fillStyle = it[1]; g.fillRect(lx, TOP / 2 - 1, 12, 2.5); g.fillStyle = C.muted; g.fillText(it[0], lx + 16, TOP / 2); lx += widthOf(it); } }
   document.title = (lastPx ? fmtPx(lastPx) + " · " : "") + (PAUSE.on ? "Paused · " : "") + CUR.c + " Footprint";
 
-  layout = {cols, rs, y, lo, hi, cx1, cy0, cy1, px0, axX, cw, rowPx, panes, dividers, IND, prof, colX, paneBot:H - TIME_H, inv:yy => lo + (cy1 - yy) / ppd};
+  const nsig = notes.map(n => n.text).join("|"); if (nsig !== chartNotesSig) { chartNotesSig = nsig; chartNotes = notes; updateStatus(); }
+  layout = {cols, rs, y, lo, hi, cx1, cy0, cy1, px0, axX, cw, rowPx, panes, dividers, IND, prof, colX, profBtn, paneBot:H - TIME_H, inv:yy => lo + (cy1 - yy) / ppd};
   placeFab(cy1);
 }
 
@@ -1431,12 +1451,15 @@ let drag = null, resizeDrag = null, axisDrag = null;
 const TP = {pts:new Map(), mode:null, start:null, lp:null, lastTap:0, lastXY:null, sticky:false, lastTouch:0, pinch:null};
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v)), clampZ = z => clamp(z, 0.05, 20);
 function dividerAt(mx, my, tol) { if (!layout || mx > W - AXIS_W) return null; return layout.dividers.find(d => Math.abs(my - d.y) <= (tol || 4)) || null; }
-const onAxis = (x, y) => layout && x >= layout.axX && y <= layout.cy1;
+const onProfBtn = (x, y) => { const b = layout && layout.profBtn; return !!b && x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1; };
+function toggleProfile() { cfg.profShow = !cfg.profShow; saveCfg(); mouse = null; TP.sticky = false; hideTip(); buildMenus(); resize(); needOver = true; }
+const onAxis = (x, y) => layout && x >= layout.axX && y <= layout.cy1 && !onProfBtn(x, y);
 const rel = e => { const r = cv.getBoundingClientRect(); return {x:e.clientX - r.left, y:e.clientY - r.top}; };
 const recentTouch = () => Date.now() - TP.lastTouch < 900;
-cv.addEventListener("wheel", e => { e.preventDefault(); view.barW = clamp(view.barW * (e.deltaY < 0 ? 1.12 : 1 / 1.12), 10, 220); needBase = true; }, {passive:false});
+cv.addEventListener("wheel", e => { e.preventDefault(); view.barW = clamp(view.barW * (e.deltaY < 0 ? 1.12 : 1 / 1.12), MIN_BAR, 220); needBase = true; }, {passive:false});
 cv.addEventListener("mousedown", e => { if (recentTouch()) return; const p = rel(e), dv = dividerAt(p.x, p.y);
   if (PICK.on) { pickAt(p); return; }
+  if (onProfBtn(p.x, p.y)) { toggleProfile(); return; }
   if (dv) { const pane = layout.panes.find(q => q.id === dv.id); resizeDrag = {id:dv.id, y:e.clientY, h:pane.h}; e.preventDefault(); return; }
   if (onAxis(p.x, p.y)) { axisDrag = {y:e.clientY, z:view.yZoom}; e.preventDefault(); return; }
   drag = {x:e.clientX, off:view.offset}; });
@@ -1445,7 +1468,7 @@ window.addEventListener("mousemove", e => { if (recentTouch()) return;
   if (resizeDrag) { paneH()[resizeDrag.id] = clamp(resizeDrag.h - (e.clientY - resizeDrag.y), 30, 400); needBase = true; }
   if (axisDrag) { view.yZoom = clampZ(axisDrag.z * Math.exp((e.clientY - axisDrag.y) / 150)); needBase = true; } });
 cv.addEventListener("mousemove", e => { if (recentTouch()) return; mouse = rel(e);
-  cv.style.cursor = resizeDrag || dividerAt(mouse.x, mouse.y) ? "row-resize" : axisDrag || onAxis(mouse.x, mouse.y) ? "ns-resize" : drag ? "grabbing" : "crosshair";
+  cv.style.cursor = onProfBtn(mouse.x, mouse.y) && !drag ? "pointer" : resizeDrag || dividerAt(mouse.x, mouse.y) ? "row-resize" : axisDrag || onAxis(mouse.x, mouse.y) ? "ns-resize" : drag ? "grabbing" : "crosshair";
   if (drag) { view.offset = Math.max(0, drag.off + (e.clientX - drag.x) / view.barW); needBase = true; }
   needOver = true; });
 cv.addEventListener("mouseleave", () => { if (!TP.sticky) { mouse = null; needOver = true; } });
@@ -1462,7 +1485,10 @@ cv.addEventListener("pointerdown", e => {
   if (TP.pts.size === 2) {
     clearTimeout(TP.lp); resizeDrag = null; axisDrag = null; const [a, b] = [...TP.pts.values()];
     const dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y);
-    TP.mode = "pinch"; TP.pinch = {vert:dy > dx * 1.3, d:Math.max(24, dx), dy:Math.max(24, dy), w:view.barW, z:view.yZoom, mx:(a.x + b.x) / 2, off:view.offset}; return; }
+    // pinch at any angle changes how many bars fit, anchored on the point between the fingers
+    // (price scaling is done by dragging the price axis)
+    const edge = (layout ? layout.cx1 : W) - 10, mx = (a.x + b.x) / 2;
+    TP.mode = "pinch"; TP.pinch = {d:Math.max(24, Math.hypot(dx, dy)), w:view.barW, edge, k:(edge - mx) / view.barW + view.offset}; return; }
   if (TP.pts.size > 2) return;
   TP.start = {x:p.x, y:p.y, t:Date.now(), off:view.offset};
   const dv = dividerAt(p.x, p.y, 14);
@@ -1476,9 +1502,8 @@ cv.addEventListener("pointermove", e => {
   if (e.pointerType === "mouse" || !TP.pts.has(e.pointerId)) return;
   e.preventDefault(); const p = rel(e); TP.pts.set(e.pointerId, p); TP.lastTouch = Date.now();
   if (TP.mode === "pinch") { if (TP.pts.size < 2) return; const [a, b] = [...TP.pts.values()], P0 = TP.pinch;
-    if (P0.vert) view.yZoom = clampZ(P0.z * P0.dy / Math.max(24, Math.abs(a.y - b.y)));
-    else { view.barW = clamp(P0.w * Math.max(24, Math.abs(a.x - b.x)) / P0.d, 10, 220);
-      view.offset = Math.max(0, P0.off + ((a.x + b.x) / 2 - P0.mx) / view.barW); }
+    view.barW = clamp(P0.w * Math.max(24, Math.hypot(a.x - b.x, a.y - b.y)) / P0.d, MIN_BAR, 220);
+    view.offset = Math.max(0, P0.k - (P0.edge - (a.x + b.x) / 2) / view.barW);
     needBase = true; return; }
   if (TP.mode === "resize") { paneH()[resizeDrag.id] = clamp(resizeDrag.h - (e.clientY - resizeDrag.y), 30, 400); needBase = true; return; }
   if (TP.mode === "axis") { view.yZoom = clampZ(axisDrag.z * Math.exp((e.clientY - axisDrag.y) / 150)); needBase = true; return; }
@@ -1502,6 +1527,7 @@ function endTouch(e) {
 cv.addEventListener("pointerup", endTouch); cv.addEventListener("pointercancel", endTouch);
 function onTap(p) {
   if (PICK.on) { pickAt(p); return; }
+  if (onProfBtn(p.x, p.y)) { toggleProfile(); return; }
   const now = Date.now(), dbl = now - TP.lastTap < 330 && TP.lastXY && Math.hypot(p.x - TP.lastXY.x, p.y - TP.lastXY.y) < 40;
   TP.lastTap = dbl ? 0 : now; TP.lastXY = p;
   if (dbl) {
@@ -1533,15 +1559,29 @@ function setPause(on) {
 }
 // phone: floating pause / live buttons in the lower-left of the price chart (older bars sit there, so the
 // newest candles on the right stay clear). Live only shows when the view isn't already live.
-const fab = $("fab"), fabPause = $("fabPause"), fabLive = $("fabLive");
-function placeFab(cy1) { if (!MOB) return; fab.style.top = Math.max(TOP + 4, cy1 - 50) + "px"; syncFab(); }
+const fab = $("fab"), fabBtn = $("fabBtn");
+// Small, side by side, centered in the right-hand box of the lowest bottom panel (beside RSI by default).
+// With no room there (profile column hidden, no panels, very narrow screen) they go back to the lower-left of the chart.
+let FAB_AT = null;
+function placeFab(cy1) { if (!MOB) return;
+  const L = layout, p = L && L.panes.length ? L.panes[L.panes.length - 1] : null;
+  FAB_AT = L && p ? {x0:PROF_W ? L.px0 : L.axX, w:PROF_W ? L.axX - L.px0 : W - L.axX, y0:p.y0, h:p.h, cy1} : {x0:0, w:0, y0:0, h:0, cy1};
+  syncFab(); }
+function positionFab() {   // room is checked for the widest label, so the button doesn't move when its text changes
+  if (!MOB || !FAB_AT) return; const A = FAB_AT, keep = fabBtn.textContent;
+  fabBtn.textContent = "▶ Live"; const fw = fab.offsetWidth, fh = fab.offsetHeight; fabBtn.textContent = keep;
+  const ok = A.w && fw + 4 <= A.w && fh + 6 <= A.h; fab.dataset.at = ok ? "panel" : "chart";
+  if (!ok) { fab.style.left = "8px"; fab.style.top = Math.max(TOP + 4, A.cy1 - 36) + "px"; return; }
+  fab.style.left = Math.round(A.x0 + (A.w - fab.offsetWidth) / 2) + "px"; fab.style.top = Math.round(A.y0 + (A.h - fh) / 2) + "px";
+}
 function syncFab() {
   if (!fab) return;
-  fabPause.textContent = PAUSE.on ? "▶" : "❚❚"; fabPause.classList.toggle("on", PAUSE.on);
-  fabLive.hidden = !(view.offset > 0.5 || PAUSE.on || (S && S.hold) || view.yZoom !== 1);
+  // one button: ❚❚ while live, "▶ Live" when paused, "Live" when scrolled back / price stretched / history held
+  const away = view.offset > 0.5 || (S && S.hold) || view.yZoom !== 1;
+  fabBtn.textContent = PAUSE.on ? "▶ Live" : away ? "Live" : "❚❚"; fabBtn.classList.toggle("on", PAUSE.on);
+  positionFab();
 }
-fabPause.onclick = e => { e.stopPropagation(); setPause(!PAUSE.on); };
-fabLive.onclick = e => { e.stopPropagation(); goLive(); };
+fabBtn.onclick = e => { e.stopPropagation(); if (PAUSE.on || view.offset > 0.5 || (S && S.hold) || view.yZoom !== 1) goLive(); else setPause(true); };
 function syncPauseBtn() { $("pauseBtn").textContent = PAUSE.on ? (MOB ? "▶" : "▶ Resume") : (MOB ? "❚❚" : "❚❚ Pause"); $("live").textContent = MOB ? "Live" : "Live ⟶"; }
 function updatePauseBadge() { if (PAUSE.on) $("pauseTxt").textContent = MOB ? `Paused · ${(S.total - PAUSE.n0).toLocaleString()} new trades` : `Paused · ${(S.total - PAUSE.n0).toLocaleString()} new trades collected in the background`; }
 $("pauseBtn").onclick = () => setPause(!PAUSE.on);
@@ -1556,7 +1596,16 @@ document.addEventListener("keydown", e => {
 const statusEl = $("status");
 function hms(t) { const d = new Date(t), p2 = n => String(n).padStart(2, "0"); return p2(d.getHours()) + ":" + p2(d.getMinutes()); }
 function fmtMB(b) { return b == null ? "—" : b >= 1e9 ? (b / 1e9).toFixed(1) + " GB" : Math.max(0.1, b / 1e6).toFixed(b >= 1e8 ? 0 : 1) + " MB"; }
-let statusExp = false;
+let statusExp = false, chartNotes = [], chartNotesSig = "", deskNotesSig = null;
+function renderDeskNotes() {   // desktop: gap / partial-history notes for the bars in view, in the header row
+  const el = $("chartNotes"); if (!el) return;
+  const list = MOB ? [] : [...chartNotes.filter(n => n.kind === "seed"), ...chartNotes.filter(n => n.kind === "gap").sort((a, b) => b.t - a.t)];
+  const sig = list.map(n => n.full).join("|"); if (sig === deskNotesSig) return; deskNotesSig = sig;
+  const esc = x => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+  const seeds = list.filter(n => n.kind === "seed"), gaps = list.filter(n => n.kind === "gap"), sp = n => `<span style="color:${n.col || "#aab6c8"}" title="${esc(n.full)}">${esc(n.text)}</span>`;
+  el.innerHTML = seeds.map(sp).join("") + (gaps.length ? sp(gaps[0]) : "") + (gaps.length > 1 ? `<span style="color:#8b94a1" title="${esc(gaps.slice(1).map(n => n.full).join("\n"))}">+${gaps.length - 1} more gap${gaps.length > 2 ? "s" : ""}</span>` : "");
+  el.title = list.map(n => n.full).join("\n");
+}   // phone: gap / partial-history notes for the bars in view
 statusEl.addEventListener("click", () => { if (MOB) { statusExp = !statusExp; updateStatus(); } });
 function updateStatus() {
   if (!CUR) return;
@@ -1575,6 +1624,13 @@ function updateStatus() {
     if (st.quota && st.usage / st.quota > 0.8) parts.push(`<span class="neg">storage nearly full</span>`);
   } else if (!compact) parts.push(`<span class="${S.unsaved && cfg.role !== "viewer" ? "warn" : ""}">${cfg.role === "viewer" ? "Viewer · nothing saved on this device" : S.unsaved ? "Saving off · " + S.unsaved.toLocaleString() + " trades since last export" : "Saving off"}</span>`);
   if (folderOn()) { if (FS.state === "prompt") parts.push(`<span class="warn">Folder needs re-approval (Storage menu)</span>`); else if (FS.state === "ok" && FS.err) parts.push(`<span class="neg">Folder write failed</span>`); }
+  if (MOB && chartNotes.length) {   // compact: the history note plus the latest gap (and how many); expanded: all of them
+    const seeds = chartNotes.filter(n => n.kind === "seed"), gaps = chartNotes.filter(n => n.kind === "gap").sort((a, b) => b.t - a.t);
+    const span = (txt, col) => `<span style="color:${col || "#aab6c8"}${compact ? ";flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" : ""}">${txt}</span>`;
+    if (compact) { if (seeds.length) parts.push(span(seeds[seeds.length - 1].short));
+      if (gaps.length) parts.push(span(gaps[0].short + (gaps.length > 1 ? ` +${gaps.length - 1}` : ""), gaps[0].col)); }
+    else { for (const n of seeds) parts.push(span(n.text)); for (const n of gaps) parts.push(span(n.text, n.col)); }
+  }
   if (BF.msg) parts.push(`<span style="color:#7dd3fc${compact ? ";flex:0 1 auto;overflow:hidden;text-overflow:ellipsis" : ""}">${BF.msg}</span>`);
   if (PICK.on) parts.push(`<span class="warn" style="flex:none">${MOB ? "Tap a bar to anchor VWAP" : "Click a bar to anchor the VWAP (Esc to cancel)"}</span>`);
   if (S.hold) parts.push(`<span class="warn">${compact ? "History held" : "History loaded · Live ⟶ to release"}</span>`);
@@ -1585,6 +1641,7 @@ function updateStatus() {
   if (compact) parts.push(`<span style="margin-left:auto;color:#525b68">▾</span>`);
   else parts.push(`<span style="margin-left:auto">${MOB ? "Pinch: zoom · Drag: pan · Hold: crosshair · Tap: details · Double-tap: live · Drag price axis: scale" : "Scroll: zoom · Drag: pan · Drag price axis: scale · Double-click: live · Space: pause"}</span>`);
   statusEl.innerHTML = parts.join("");
+  renderDeskNotes();
   updatePauseBadge();
 }
 
